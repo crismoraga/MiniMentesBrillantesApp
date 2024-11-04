@@ -1,126 +1,312 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, Alert, PanResponder } from 'react-native';
-import Svg, { Circle, Rect, Polygon, Line } from 'react-native-svg';
-import { PanGestureHandler } from 'react-native-gesture-handler';
+import React, { useState, useRef } from 'react';
+import { View, Text, StyleSheet, Alert, PanResponder, Animated } from 'react-native';
+import Svg, { Circle, Path } from 'react-native-svg';
+import { PanGestureHandler, State } from 'react-native-gesture-handler';
+import { FontAwesome5 } from '@expo/vector-icons';
+import { Audio } from 'expo-av';
 
-const PizzaGame = ({ ageGroup }) => {
-  const [phase, setPhase] = useState('addingIngredients');
-  const [targetIngredients, setTargetIngredients] = useState(Math.floor(Math.random() * (ageGroup === "4-5" ? 8 : 18)) + 3);
-  const [ingredientsPlaced, setIngredientsPlaced] = useState([]);
-  const [cutLines, setCutLines] = useState([]);
-  const [currentIngredient, setCurrentIngredient] = useState(null);
-  const [draggingPosition, setDraggingPosition] = useState(null);
-  const [targetSlices, setTargetSlices] = useState(Math.floor(Math.random() * 4) * 2 + 2);
-  
-  // Líneas pre-marcadas para guiar el corte
-  const guideLines = Array.from({ length: targetSlices }, (_, i) => {
-    const angle = (360 / targetSlices) * i;
-    const radian = (Math.PI / 180) * angle;
-    return {
-      x: 50 + 50 * Math.cos(radian),
-      y: 50 + 50 * Math.sin(radian),
-    };
+const PizzaGame = ({ ageGroup, navigation }) => {
+  // State variables
+  const [gameState, setGameState] = useState({
+    phase: 'addingIngredients',
+    targetIngredients:
+      ageGroup === '4-5'
+        ? Math.floor(Math.random() * 3) + 3 // 3 to 5 ingredients
+        : Math.floor(Math.random() * 5) + 6, // 6 to 10 ingredients
+    ingredientsPlaced: [],
+    targetSlices: ageGroup === '4-5' ? 4 : 8, // 4 or 8 slices
   });
 
-  const handlePlaceIngredient = (x, y) => {
-    if (ingredientsPlaced.length < targetIngredients) {
-      setIngredientsPlaced([...ingredientsPlaced, { type: currentIngredient, x, y }]);
+  const [currentIngredient, setCurrentIngredient] = useState(null);
+  const [draggingPosition, setDraggingPosition] = useState(null);
+  const [cutLines, setCutLines] = useState([]);
+  const [currentCutLine, setCurrentCutLine] = useState([]);
+  const [expectedCuts, setExpectedCuts] = useState(generateExpectedCuts());
+
+  const ingredientScale = useRef(new Animated.Value(1)).current;
+
+  // Sound playback function
+  const playSound = async (soundFile) => {
+    try {
+      const { sound } = await Audio.Sound.createAsync(soundFile);
+      await sound.playAsync();
+      // Unload sound after playing
+      sound.setOnPlaybackStatusUpdate((status) => {
+        if (status.didJustFinish) {
+          sound.unloadAsync();
+        }
+      });
+    } catch (error) {
+      console.log('Cannot play the sound file', error);
+    }
+  };
+
+  // Place ingredient on pizza
+  const handlePlaceIngredient = async (x, y) => {
+    if (gameState.ingredientsPlaced.length < gameState.targetIngredients) {
+      const newIngredient = {
+        id: Date.now() + Math.random(),
+        type: currentIngredient,
+        x,
+        y,
+      };
+      const newIngredients = [...gameState.ingredientsPlaced, newIngredient];
+      setGameState({
+        ...gameState,
+        ingredientsPlaced: newIngredients,
+      });
       setDraggingPosition(null);
-      if (ingredientsPlaced.length + 1 >= targetIngredients) {
-        setPhase('cutting');
+
+      // Animate ingredient
+      Animated.sequence([
+        Animated.timing(ingredientScale, {
+          toValue: 1.2,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+        Animated.timing(ingredientScale, {
+          toValue: 1,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+      ]).start();
+
+      if (newIngredients.length >= gameState.targetIngredients) {
+        Alert.alert('¡Buen trabajo!', 'Ahora corta la pizza en porciones.');
+        setGameState({ ...gameState, phase: 'cutting' });
       }
     }
   };
 
-  const handleGesture = ({ nativeEvent }) => {
-    if (phase === 'cutting' && cutLines.length < targetSlices) {
+  // Function to generate expected straight cut lines
+  function generateExpectedCuts() {
+    const cuts = [];
+    const center = { x: 150, y: 150 };
+    const numberOfCuts = ageGroup === '4-5' ? 4 : 8;
+    for (let i = 0; i < numberOfCuts; i++) {
+      const angle = (i * 360) / numberOfCuts;
+      const radians = (angle * Math.PI) / 180;
+      const endX = center.x + 150 * Math.cos(radians);
+      const endY = center.y + 150 * Math.sin(radians);
+      cuts.push({ start: center, end: { x: endX, y: endY } });
+    }
+    return cuts;
+  }
+
+  // Handle cutting gesture
+  const onCutGestureEvent = ({ nativeEvent }) => {
+    if (gameState.phase === 'cutting') {
       const { x, y } = nativeEvent;
-      // Verificar si el trazo del dedo sigue una línea predefinida
-      const lineToFollow = guideLines[cutLines.length];
-      const distance = Math.sqrt((x - lineToFollow.x) ** 2 + (y - lineToFollow.y) ** 2);
-      if (distance < 10) { // margen de error
-        setCutLines([...cutLines, { x, y }]);
-      }
-      if (cutLines.length >= targetSlices - 1) {
-        setPhase('completed');
-        Alert.alert("¡Juego completo!", "Has hecho los cortes correctamente.");
+      setCurrentCutLine([{ x: 150, y: 150 }, { x, y }]); // Start from center
+    }
+  };
+
+  // Handle end of cutting gesture
+  const onCutHandlerStateChange = async ({ nativeEvent }) => {
+    if (nativeEvent.state === State.END && gameState.phase === 'cutting') {
+      if (currentCutLine.length === 2) {
+        const userCut = currentCutLine;
+        const isValidCut = expectedCuts.some(
+          (cut) =>
+            Math.abs(userCut[1].x - cut.end.x) < 20 &&
+            Math.abs(userCut[1].y - cut.end.y) < 20
+        );
+        if (isValidCut) {
+          setCutLines((prev) => [...prev, userCut]);
+          if (cutLines.length + 1 >= gameState.targetSlices) {
+            setGameState({ ...gameState, phase: 'completed' });
+            Alert.alert(
+              '¡Juego completo!',
+              'Has cortado la pizza correctamente.',
+              [{ text: 'OK', onPress: () => navigation.navigate('MainGameScreen') }]
+            );
+          }
+        } else {
+          Alert.alert('Corte inválido', 'Por favor, sigue la línea de puntos.');
+        }
+        setCurrentCutLine([]);
+      } else {
+        setCurrentCutLine([]);
       }
     }
   };
 
-  const renderIngredient = (ingredient) => {
-    switch (ingredient.type) {
-      case 'pepperoni':
-        return <Circle cx={ingredient.x} cy={ingredient.y} r="5" fill="red" />;
-      case 'cheese':
-        return <Rect x={ingredient.x - 5} y={ingredient.y - 5} width="10" height="10" fill="yellow" />;
-      case 'pineapple':
-        return <Polygon points={`${ingredient.x},${ingredient.y - 5} ${ingredient.x + 5},${ingredient.y + 5} ${ingredient.x - 5},${ingredient.y + 5}`} fill="green" />;
-      default:
-        return null;
-    }
+  // Ingredient icons definition
+  const ingredientIcons = {
+    pepperoni: { name: 'pepper-hot', color: '#E74C3C' },
+    cheese: { name: 'cheese', color: '#F1C40F' },
+    pineapple: { name: 'apple-alt', color: '#27AE60' },
+    olive: { name: 'circle', color: '#2C3E50' },
   };
 
-  const renderPizza = () => (
-    <Svg height="200" width="200" viewBox="0 0 100 100" style={styles.pizza}>
-      <Circle cx="50" cy="50" r="50" fill="#FFD700" />
-      {ingredientsPlaced.map((ingredient, index) => (
-        <React.Fragment key={index}>{renderIngredient(ingredient)}</React.Fragment>
-      ))}
-      {guideLines.map((line, index) => (
-        <Line key={index} x1="50" y1="50" x2={line.x} y2={line.y} stroke="gray" strokeWidth="0.5" strokeDasharray="4 2" />
-      ))}
-      {cutLines.map((line, index) => (
-        <Line key={index} x1="50" y1="50" x2={line.x} y2={line.y} stroke="black" strokeWidth="1" />
-      ))}
-    </Svg>
+  // Available ingredients based on age group
+  const availableIngredients = ageGroup === '4-5'
+    ? ['pepperoni', 'cheese', 'pineapple']
+    : ['pepperoni', 'cheese', 'pineapple', 'olive'];
+
+  // Render ingredient on pizza
+  const renderIngredient = (ingredient) => (
+    <Animated.View
+      key={ingredient.id}
+      style={{
+        position: 'absolute',
+        left: ingredient.x - 15,
+        top: ingredient.y - 15,
+        transform: [{ scale: ingredientScale }],
+      }}
+    >
+      <FontAwesome5
+        name={ingredientIcons[ingredient.type].name}
+        size={30}
+        color={ingredientIcons[ingredient.type].color}
+      />
+    </Animated.View>
   );
 
-  const renderDraggingIngredient = () => {
-    if (!draggingPosition || !currentIngredient) return null;
-    const { x, y } = draggingPosition;
-    return (
-      <Svg height="100" width="100" style={{ position: 'absolute', top: y - 25, left: x - 25 }}>
-        {renderIngredient({ type: currentIngredient, x: 25, y: 25 })}
-      </Svg>
-    );
-  };
+  // Render expected cut lines
+  const renderExpectedCuts = () => (
+    <>
+      {expectedCuts.map((cut, index) => (
+        <Path
+          key={`expected-cut-${index}`}
+          d={`M${cut.start.x},${cut.start.y} L${cut.end.x},${cut.end.y}`}
+          stroke="#95A5A6"
+          strokeWidth="2"
+          strokeDasharray="5,5"
+        />
+      ))}
+    </>
+  );
 
+  // Render pizza with ingredients and cut lines
+  const renderPizza = () => (
+    <View style={styles.pizzaContainer}>
+      <Svg height="300" width="300">
+        {/* Pizza base */}
+        <Circle cx="150" cy="150" r="150" fill="#F5CBA7" stroke="#D35400" strokeWidth="4" />
+        {/* Placed ingredients */}
+        {gameState.ingredientsPlaced.map(renderIngredient)}
+        {/* Expected cut lines */}
+        {gameState.phase === 'cutting' && renderExpectedCuts()}
+        {/* Cut lines */}
+        {cutLines.map((line, index) => (
+          <Path
+            key={`cut-line-${index}`}
+            d={`M${line.map((p) => `${p.x},${p.y}`).join(' ')}`}
+            stroke="#34495E"
+            strokeWidth="2"
+          />
+        ))}
+        {/* Current cutting line */}
+        {currentCutLine.length === 2 && (
+          <Path
+            d={`M${currentCutLine.map((p) => `${p.x},${p.y}`).join(' ')}`}
+            stroke="#E74C3C"
+            strokeWidth="2"
+          />
+        )}
+      </Svg>
+    </View>
+  );
+
+  // Pan responder for ingredients
   const ingredientPanResponder = (ingredient) =>
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onPanResponderGrant: () => setCurrentIngredient(ingredient),
       onPanResponderMove: (evt, gestureState) => {
-        setDraggingPosition({ x: gestureState.moveX, y: gestureState.moveY });
+        setDraggingPosition({
+          x: gestureState.moveX - 25,
+          y: gestureState.moveY - 25,
+        });
       },
-      onPanResponderRelease: (evt, gestureState) => {
-        handlePlaceIngredient(gestureState.moveX - 50, gestureState.moveY - 200); // Relative to pizza container
-        setCurrentIngredient(null);
+      onPanResponderRelease: () => {
+        if (draggingPosition) {
+          // Calculate position relative to pizza
+          const pizzaPosition = { x: 50, y: 200 }; // Adjust as needed
+          handlePlaceIngredient(
+            draggingPosition.x - pizzaPosition.x,
+            draggingPosition.y - pizzaPosition.y
+          );
+          setCurrentIngredient(null);
+          setDraggingPosition(null);
+        }
       },
     });
 
+  // Render ingredient options for selection
   const renderIngredientsOptions = () => (
     <View style={styles.ingredientsContainer}>
-      {['pepperoni', 'cheese', 'pineapple'].map((ingredient, index) => (
+      {availableIngredients.map((ingredient) => (
         <View
-          key={index}
-          style={[styles.ingredientButton, styles[ingredient]]}
+          key={ingredient}
+          style={styles.ingredientOption}
           {...ingredientPanResponder(ingredient).panHandlers}
-        />
+        >
+          <FontAwesome5
+            name={ingredientIcons[ingredient].name}
+            size={50}
+            color={ingredientIcons[ingredient].color}
+          />
+          <Text style={styles.ingredientLabel}>
+            {ingredient.charAt(0).toUpperCase() + ingredient.slice(1)}
+          </Text>
+        </View>
       ))}
     </View>
   );
 
+  // Render the dragging ingredient
+  const renderDraggingIngredient = () => {
+    if (!draggingPosition || !currentIngredient) return null;
+    return (
+      <Animated.View
+        style={{
+          position: 'absolute',
+          left: draggingPosition.x - 15,
+          top: draggingPosition.y - 15,
+          transform: [{ scale: ingredientScale }],
+        }}
+      >
+        <FontAwesome5
+          name={ingredientIcons[currentIngredient].name}
+          size={30}
+          color={ingredientIcons[currentIngredient].color}
+        />
+      </Animated.View>
+    );
+  };
+
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Pizza de Ingredientes</Text>
-      {phase === 'addingIngredients' && <Text style={styles.instruction}>Coloca {targetIngredients} ingredientes en la pizza</Text>}
-      {phase === 'cutting' && <Text style={styles.instruction}>Haz {targetSlices} cortes para dividir la pizza</Text>}
-      <PanGestureHandler onGestureEvent={handleGesture}>
-        <View style={styles.pizzaContainer}>{renderPizza()}</View>
-      </PanGestureHandler>
+      {gameState.phase === 'addingIngredients' && (
+        <Text style={styles.instruction}>
+          Coloca {gameState.targetIngredients} ingredientes en la pizza (
+          {gameState.ingredientsPlaced.length}/{gameState.targetIngredients})
+        </Text>
+      )}
+      {gameState.phase === 'cutting' && (
+        <Text style={styles.instruction}>
+          Haz {gameState.targetSlices} cortes para dividir la pizza (
+          {cutLines.length}/{gameState.targetSlices})
+        </Text>
+      )}
+      {/* Render pizza with or without cutting gesture handler */}
+      {gameState.phase === 'cutting' ? (
+        <PanGestureHandler
+          onGestureEvent={onCutGestureEvent}
+          onHandlerStateChange={onCutHandlerStateChange}
+        >
+          {renderPizza()}
+        </PanGestureHandler>
+      ) : (
+        renderPizza()
+      )}
+      {/* Render the dragging ingredient */}
       {renderDraggingIngredient()}
-      {phase === 'addingIngredients' && renderIngredientsOptions()}
+      {/* Render ingredient options */}
+      {gameState.phase === 'addingIngredients' && renderIngredientsOptions()}
     </View>
   );
 };
@@ -128,48 +314,42 @@ const PizzaGame = ({ ageGroup }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 20,
-    backgroundColor: '#FFFAE5',
+    backgroundColor: '#FCF3CF',
     alignItems: 'center',
+    paddingTop: 50,
   },
   title: {
-    fontSize: 24,
+    fontSize: 32,
     fontWeight: 'bold',
-    marginBottom: 20,
-    color: '#8B4513',
+    color: '#E67E22',
+    marginBottom: 10,
   },
   instruction: {
-    fontSize: 18,
-    marginBottom: 10,
-    color: '#333',
+    fontSize: 20,
+    color: '#34495E',
+    textAlign: 'center',
+    marginHorizontal: 20,
+    marginBottom: 20,
   },
   pizzaContainer: {
-    marginVertical: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  pizza: {
+    width: 300,
+    height: 300,
     marginBottom: 20,
   },
   ingredientsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-around',
-    width: '80%',
+    width: '90%',
     marginTop: 10,
   },
-  ingredientButton: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+  ingredientOption: {
+    alignItems: 'center',
+    marginHorizontal: 5,
   },
-  pepperoni: {
-    backgroundColor: 'red',
-  },
-  cheese: {
-    backgroundColor: 'yellow',
-  },
-  pineapple: {
-    backgroundColor: 'green',
+  ingredientLabel: {
+    marginTop: 5,
+    fontSize: 16,
+    color: '#2C3E50',
   },
 });
 
