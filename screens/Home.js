@@ -36,7 +36,7 @@ const Home = ({ navigation }) => {
     <View style={styles.container}>
       <Text style={styles.title}>¡Bienvenido a Mini Mentes Brillantes!</Text>
       {age && <Text style={styles.ageText}>Edad seleccionada: {age} años</Text>}
-      <TouchableOpacity style={styles.button} onPress={() => Alert.alert("Acceso a Juegos")}>
+      <TouchableOpacity style={styles.button} onPress={() => navigation.navigate('MainGameScreen')}>
         <Text style={styles.buttonText}>Ir a Juegos</Text>
       </TouchableOpacity>
       <TouchableOpacity style={styles.button} onPress={handleLogout}>
@@ -51,12 +51,12 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f0f8ff',
+    backgroundColor: '#C8E6C9',
   },
   title: {
     fontSize: 24,
     marginBottom: 20,
-    color: '#333',
+    color: '#1B5E20',
   },
   ageText: {
     fontSize: 20,
@@ -64,7 +64,7 @@ const styles = StyleSheet.create({
     color: '#555',
   },
   button: {
-    backgroundColor: '#6a5acd',
+    backgroundColor: '#388E3C',
     padding: 15,
     borderRadius: 10,
     width: '80%',

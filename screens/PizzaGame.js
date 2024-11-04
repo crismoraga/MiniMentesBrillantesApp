@@ -133,16 +133,16 @@ const PizzaGame = ({ ageGroup, navigation }) => {
 
   // Ingredient icons definition
   const ingredientIcons = {
-    pepperoni: { name: 'pepper-hot', color: '#E74C3C' },
-    cheese: { name: 'cheese', color: '#F1C40F' },
-    pineapple: { name: 'apple-alt', color: '#27AE60' },
-    olive: { name: 'circle', color: '#2C3E50' },
+    Ají: { name: 'pepper-hot', color: '#27AE60' },
+    Tocino: { name: 'bacon', color: '#E74C3C' },
+    Queso: { name: 'cheese', color: '#F1C40F' },
+    Aceituna: { name: 'circle', color: '#2C3E50' },
   };
 
   // Available ingredients based on age group
   const availableIngredients = ageGroup === '4-5'
-    ? ['pepperoni', 'cheese', 'pineapple']
-    : ['pepperoni', 'cheese', 'pineapple', 'olive'];
+    ? ['Tocino', 'Queso', 'Aceituna']
+    : ['Tocino', 'Queso', 'Aceituna', 'Ají'];
 
   // Render ingredient on pizza
   const renderIngredient = (ingredient) => (

@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Image, Modal, Switch } from 'react-native';
 import Animated, { Easing, useSharedValue, useAnimatedStyle, withRepeat, withTiming } from 'react-native-reanimated';
+import { Audio } from 'expo-av'; // Importa expo-av
+import { useAppContext } from '../context/AppContext';
 
 const Cloud = ({ initialPosition, speed, opacity, top }) => {
   const cloudPosition = useSharedValue(initialPosition);
@@ -28,12 +30,18 @@ const Cloud = ({ initialPosition, speed, opacity, top }) => {
 
 export default function HomeScreen({ navigation }) {
   const [settingsVisible, setSettingsVisible] = useState(false);
-  const [isMusicMuted, setMusicMuted] = useState(false);
-  const [isSoundMuted, setSoundMuted] = useState(false);
-  const [isColorBlindMode, setColorBlindMode] = useState(false);
+  const {
+    isMusicMuted,
+    isSoundMuted,
+    isColorBlindMode,
+    handleMusicToggle,
+    handleSoundToggle,
+    handleColorBlindToggle,
+    getColor
+  } = useAppContext();
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: getColor('background') }]}>
       {/* Animated Clouds */}
       <Cloud initialPosition={-300} speed={5000} opacity={0.6} top={100} />
       <Cloud initialPosition={-500} speed={7000} opacity={0.8} top={200} />
@@ -70,20 +78,23 @@ export default function HomeScreen({ navigation }) {
 
             <View style={styles.settingOption}>
               <Text style={styles.settingText}>Silenciar Música</Text>
-              <Switch value={isMusicMuted} onValueChange={setMusicMuted} />
+              <Switch value={isMusicMuted} onValueChange={handleMusicToggle} />
             </View>
 
             <View style={styles.settingOption}>
               <Text style={styles.settingText}>Silenciar Sonidos</Text>
-              <Switch value={isSoundMuted} onValueChange={setSoundMuted} />
+              <Switch value={isSoundMuted} onValueChange={handleSoundToggle} />
             </View>
 
             <View style={styles.settingOption}>
               <Text style={styles.settingText}>Modo Daltonismo</Text>
-              <Switch value={isColorBlindMode} onValueChange={setColorBlindMode} />
+              <Switch value={isColorBlindMode} onValueChange={handleColorBlindToggle} />
             </View>
 
-            <TouchableOpacity style={styles.closeButton} onPress={() => setSettingsVisible(false)}>
+            <TouchableOpacity 
+              style={[styles.closeButton, { backgroundColor: getColor('button') }]}
+              onPress={() => setSettingsVisible(false)}
+            >
               <Text style={styles.closeButtonText}>Cerrar</Text>
             </TouchableOpacity>
           </View>

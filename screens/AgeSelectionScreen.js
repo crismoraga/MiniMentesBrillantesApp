@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Animatable from 'react-native-animatable';
 
 const AgeSelectionScreen = ({ navigation }) => {
   useEffect(() => {
@@ -21,13 +22,19 @@ const AgeSelectionScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Selecciona la edad del niño</Text>
-      <TouchableOpacity style={styles.button} onPress={() => handleAgeSelect('4-5')}>
-        <Text style={styles.buttonText}>4 a 5 años</Text>
-      </TouchableOpacity>
-      <TouchableOpacity style={styles.button} onPress={() => handleAgeSelect('6+')}>
-        <Text style={styles.buttonText}>6 o más</Text>
-      </TouchableOpacity>
+      <Animatable.Text animation="fadeInDown" style={styles.title}>
+        Selecciona la edad del niño
+      </Animatable.Text>
+      <Animatable.View animation="pulse" iterationCount="infinite" easing="ease-out">
+        <TouchableOpacity style={styles.button} onPress={() => handleAgeSelect('4-5')}>
+          <Text style={styles.buttonText}>4 a 5 años</Text>
+        </TouchableOpacity>
+      </Animatable.View>
+      <Animatable.View animation="pulse" iterationCount="infinite" easing="ease-out" delay={500}>
+        <TouchableOpacity style={styles.button} onPress={() => handleAgeSelect('6+')}>
+          <Text style={styles.buttonText}>6 o más</Text>
+        </TouchableOpacity>
+      </Animatable.View>
     </View>
   );
 };
@@ -37,15 +44,15 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f0f8ff',
+    backgroundColor: '#FFE082',
   },
   title: {
     fontSize: 24,
     marginBottom: 20,
-    color: '#333',
+    color: '#BF360C',
   },
   button: {
-    backgroundColor: '#6a5acd',
+    backgroundColor: '#FF6F00',
     padding: 15,
     margin: 10,
     borderRadius: 10,
