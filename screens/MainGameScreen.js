@@ -192,7 +192,7 @@ const styles = StyleSheet.create({
   },
   background: {
     flex: 1,
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#F5F5DC', // Changed to beige color
   },
   header: {
     height: 200,
