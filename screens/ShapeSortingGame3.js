@@ -1,6 +1,15 @@
-import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import React, { useState, useCallback, useRef } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, Image, Animated, Dimensions, ImageBackground } from 'react-native';
 import Svg, { Circle, Rect, Polygon } from 'react-native-svg';
+import { PanResponder } from 'react-native-gesture-handler';
+import { Audio } from 'expo-av';
+
+const { width, height } = Dimensions.get('window');
+
+const shapes = [
+  { id: 1, type: 'star', image: require('../assets/star.png') },
+  { id: 2, type: 'heart', image: require('../assets/heart.png') },
+];
 
 const ShapeSortingGame3 = ({ ageGroup }) => {
   const [shapes, setShapes] = useState(() => generateShapes(ageGroup));

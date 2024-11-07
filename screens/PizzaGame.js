@@ -4,6 +4,7 @@ import Svg, { Circle, Path } from 'react-native-svg';
 import { PanGestureHandler, State } from 'react-native-gesture-handler';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
+import Toast from 'react-native-toast-message';
 
 const PizzaGame = ({ ageGroup, navigation }) => {
   // State variables
@@ -37,7 +38,7 @@ const PizzaGame = ({ ageGroup, navigation }) => {
         }
       });
     } catch (error) {
-      console.log('Cannot play the sound file', error);
+      console.log('Error playing sound:', error);
     }
   };
 
@@ -72,7 +73,14 @@ const PizzaGame = ({ ageGroup, navigation }) => {
       ]).start();
 
       if (newIngredients.length >= gameState.targetIngredients) {
-        Alert.alert('¡Buen trabajo!', 'Ahora corta la pizza en porciones.');
+        Toast.show({
+          type: 'success',
+          text1: '¡Buen trabajo!',
+          text2: 'Ahora corta la pizza en porciones',
+          visibilityTime: 3000,
+          autoHide: true,
+          topOffset: 30,
+        });
         setGameState({ ...gameState, phase: 'cutting' });
       }
     }
@@ -103,31 +111,52 @@ const PizzaGame = ({ ageGroup, navigation }) => {
 
   // Handle end of cutting gesture
   const onCutHandlerStateChange = async ({ nativeEvent }) => {
-    if (nativeEvent.state === State.END && gameState.phase === 'cutting') {
-      if (currentCutLine.length === 2) {
-        const userCut = currentCutLine;
-        const isValidCut = expectedCuts.some(
-          (cut) =>
-            Math.abs(userCut[1].x - cut.end.x) < 20 &&
-            Math.abs(userCut[1].y - cut.end.y) < 20
-        );
-        if (isValidCut) {
-          setCutLines((prev) => [...prev, userCut]);
-          if (cutLines.length + 1 >= gameState.targetSlices) {
-            setGameState({ ...gameState, phase: 'completed' });
-            Alert.alert(
-              '¡Juego completo!',
-              'Has cortado la pizza correctamente.',
-              [{ text: 'OK', onPress: () => navigation.navigate('MainGameScreen') }]
-            );
+    try {
+      if (nativeEvent.state === State.END && gameState.phase === 'cutting') {
+        if (currentCutLine.length === 2) {
+          const userCut = currentCutLine;
+          const isValidCut = expectedCuts.some(
+            (cut) =>
+              Math.abs(userCut[1].x - cut.end.x) < 20 &&
+              Math.abs(userCut[1].y - cut.end.y) < 20
+          );
+          if (isValidCut) {
+            setCutLines((prev) => [...prev, userCut]);
+            if (cutLines.length + 1 >= gameState.targetSlices) {
+              Toast.show({
+                type: 'success',
+                text1: '¡Juego completo!',
+                text2: 'Has cortado la pizza correctamente',
+                visibilityTime: 3000,
+                autoHide: true,
+                topOffset: 30,
+              });
+              setTimeout(() => navigation.navigate('MainGameScreen'), 3000);
+            }
+          } else {
+            Toast.show({
+              type: 'error',
+              text1: 'Corte inválido',
+              text2: 'Por favor, sigue la línea de puntos',
+              visibilityTime: 3000,
+              autoHide: true,
+              topOffset: 30,
+            });
           }
+          setCurrentCutLine([]);
         } else {
-          Alert.alert('Corte inválido', 'Por favor, sigue la línea de puntos.');
+          setCurrentCutLine([]);
         }
-        setCurrentCutLine([]);
-      } else {
-        setCurrentCutLine([]);
       }
+    } catch (error) {
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: 'Ocurrió un error al cortar la pizza',
+        visibilityTime: 3000,
+        autoHide: true,
+        topOffset: 30,
+      });
     }
   };
 
@@ -307,6 +336,7 @@ const PizzaGame = ({ ageGroup, navigation }) => {
       {renderDraggingIngredient()}
       {/* Render ingredient options */}
       {gameState.phase === 'addingIngredients' && renderIngredientsOptions()}
+      <Toast />
     </View>
   );
 };
@@ -314,7 +344,7 @@ const PizzaGame = ({ ageGroup, navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FCF3CF',
+    backgroundColor: '#FCF3CF', // Already has solid background color
     alignItems: 'center',
     paddingTop: 50,
   },

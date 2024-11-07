@@ -1,7 +1,14 @@
 import * as Haptics from 'expo-haptics';
 
-export const triggerHaptic = async (type = 'medium') => {
+export const triggerHaptic = async (type = 'medium', isSoundMuted = false) => {
+  if (isSoundMuted) return;
+
   try {
+    if (!Haptics) {
+      console.warn('Haptics not available');
+      return;
+    }
+
     switch (type) {
       case 'light':
         await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -22,6 +29,6 @@ export const triggerHaptic = async (type = 'medium') => {
         await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
   } catch (error) {
-    console.warn('Haptic feedback not available:', error);
+    console.warn('Haptic feedback error:', error);
   }
 };

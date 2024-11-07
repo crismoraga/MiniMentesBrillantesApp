@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Dimensions, Alert } from 'react-native';
 import Svg, { Circle, Rect, Polygon, Path } from 'react-native-svg';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Toast from 'react-native-toast-message';
 
 const { width } = Dimensions.get('window');
 
@@ -108,9 +109,23 @@ const ShapeMatchingGame = ({ navigation }) => {
   const handleShapePress = (shapeId) => {
     const correct = targetShapes.some(shape => shape.id === shapeId);
     if (correct) {
-      Alert.alert('¡Correcto!', 'Has seleccionado la figura correcta.');
+      Toast.show({
+        type: 'success',
+        text1: '¡Correcto!',
+        text2: 'Has seleccionado la figura correcta',
+        visibilityTime: 3000,
+        autoHide: true,
+        topOffset: 30,
+      });
     } else {
-      Alert.alert('Inténtalo de nuevo', 'Esa no es la figura correcta.');
+      Toast.show({
+        type: 'error',
+        text1: 'Inténtalo de nuevo',
+        text2: 'Esa no es la figura correcta',
+        visibilityTime: 3000,
+        autoHide: true,
+        topOffset: 30,
+      });
     }
   };
 
@@ -154,6 +169,7 @@ const ShapeMatchingGame = ({ navigation }) => {
           </View>
         </>
       )}
+      <Toast />
     </View>
   );
 };

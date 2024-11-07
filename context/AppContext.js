@@ -31,9 +31,67 @@ export const AppProvider = ({ children }) => {
     }
   };
 
+  const colorThemes = {
+    default: {
+      primary: '#FF6F61',
+      secondary: '#6B5B95',
+      background: '#FEEAE6',
+      text: '#333333',
+    },
+    ocean: {
+      primary: '#03A9F4',
+      secondary: '#01579B',
+      background: '#E1F5FE',
+      text: '#212121',
+    },
+    forest: {
+      primary: '#8BC34A',
+      secondary: '#33691E',
+      background: '#DCEDC8',
+      text: '#212121',
+    },
+  };
+
+  const [selectedTheme, setSelectedTheme] = useState('default');
+
+  const loadAudio = async () => {
+    try {
+      if (backgroundMusic) {
+        await backgroundMusic.unloadAsync();
+      }
+
+      await Audio.setAudioModeAsync({
+        playsInSilentModeIOS: true,
+        staysActiveInBackground: true,
+        shouldDuckAndroid: true,
+      });
+
+      const { sound } = await Audio.Sound.createAsync(
+        require('../assets/background.mp3'),
+        {
+          isLooping: true,
+          volume: 0.5,
+          shouldPlay: !isMusicMuted,
+        }
+      );
+
+      await sound.playAsync();
+      setBackgroundMusic(sound);
+    } catch (error) {
+      console.warn('Error loading audio:', error);
+    }
+  };
+
   useEffect(() => {
-    loadSettings();
-    setupBackgroundMusic();
+    const initializeApp = async () => {
+      await loadSettings();
+      if (!isMusicMuted) {
+        await loadAudio();
+      }
+    };
+
+    initializeApp();
+
     return () => {
       if (backgroundMusic) {
         backgroundMusic.unloadAsync();
@@ -41,52 +99,58 @@ export const AppProvider = ({ children }) => {
     };
   }, []);
 
-  const setupBackgroundMusic = async () => {
-    try {
-      const { sound } = await Audio.Sound.createAsync(
-        require('../assets/background.mp3'),
-        { 
-          isLooping: true,
-          shouldPlay: !isMusicMuted,
-          volume: 0.5 
-        }
-      );
-      setBackgroundMusic(sound);
-    } catch (error) {
-      console.warn('Error loading background music:', error);
-    }
-  };
-
   const handleMusicToggle = async () => {
     try {
-      if (!backgroundMusic) return;
-      
-      if (isMusicMuted) {
-        await backgroundMusic.playAsync();
+      const newMutedState = !isMusicMuted;
+      setIsMusicMuted(newMutedState);
+
+      if (newMutedState) {
+        if (backgroundMusic) {
+          await backgroundMusic.stopAsync();
+          await backgroundMusic.unloadAsync();
+          setBackgroundMusic(null);
+        }
       } else {
-        await backgroundMusic.pauseAsync();
+        await loadAudio();
       }
-      setIsMusicMuted(!isMusicMuted);
-      await saveSettings({ musicMuted: !isMusicMuted, soundMuted: isSoundMuted, colorBlindMode: isColorBlindMode });
+
+      await saveSettings({
+        musicMuted: newMutedState,
+        soundMuted: isSoundMuted,
+        colorBlindMode: isColorBlindMode,
+        theme: selectedTheme
+      });
     } catch (error) {
       console.warn('Error toggling music:', error);
     }
   };
 
+  const handleSoundToggle = async () => {
+    setIsSoundMuted(!isSoundMuted);
+    await saveSettings({ musicMuted: isMusicMuted, soundMuted: !isSoundMuted, colorBlindMode: isColorBlindMode });
+  };
+
+  const handleColorBlindToggle = async () => {
+    setIsColorBlindMode(!isColorBlindMode);
+    await saveSettings({ musicMuted: isMusicMuted, soundMuted: isSoundMuted, colorBlindMode: !isColorBlindMode });
+  };
+
   const getColor = (type) => {
     const scheme = isColorBlindMode ? colorSchemes.colorBlind : colorSchemes.normal;
-    return scheme[type] || colorSchemes.normal[type];
+    return scheme[type] || scheme.primary;
   };
 
   const loadSettings = async () => {
     try {
       const settings = await AsyncStorage.getItem('appSettings');
       if (settings) {
-        const { musicMuted, soundMuted, colorBlindMode } = JSON.parse(settings);
+        const { musicMuted, soundMuted, colorBlindMode, theme } = JSON.parse(settings);
         setIsMusicMuted(musicMuted);
         setIsSoundMuted(soundMuted);
         setIsColorBlindMode(colorBlindMode);
+        if (theme) setSelectedTheme(theme);
       }
+      loadAudio();
     } catch (error) {
       console.warn('Error loading settings:', error);
     }
@@ -106,13 +170,15 @@ export const AppProvider = ({ children }) => {
     isColorBlindMode,
     getColor,
     handleMusicToggle,
-    handleSoundToggle: async () => {
-      setIsSoundMuted(!isSoundMuted);
-      await saveSettings({ musicMuted: isMusicMuted, soundMuted: !isSoundMuted, colorBlindMode: isColorBlindMode });
-    },
-    handleColorBlindToggle: async () => {
-      setIsColorBlindMode(!isColorBlindMode);
-      await saveSettings({ musicMuted: isMusicMuted, soundMuted: isSoundMuted, colorBlindMode: !isColorBlindMode });
+    handleSoundToggle,
+    handleColorBlindToggle,
+    selectedTheme,
+    setSelectedTheme: async (themeName) => {
+      setSelectedTheme(themeName);
+      await saveSettings({
+        // ...otros settings...
+        theme: themeName,
+      });
     },
   };
 

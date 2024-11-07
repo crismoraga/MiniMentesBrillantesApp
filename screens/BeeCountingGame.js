@@ -1,34 +1,128 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, Modal, Animated, Easing } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import * as Animatable from 'react-native-animatable';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Modal, Image, Dimensions, TextInput, Animated } from 'react-native';
 import { Audio } from 'expo-av';
-import { triggerHaptic } from '../services/haptics';
-import SpriteSheet from 'react-native-sprite-sheet';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
-import Svg, { Path } from 'react-native-svg';
+import * as Animatable from 'react-native-animatable';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useNavigation } from '@react-navigation/native';
 
-const BeeIcon = ({ color, size }) => (
-    <Svg width={size} height={size} viewBox="0 0 24 24">
-        <Path
-            d="M17.4 9C17 7.8 16.2 6.8 15.2 6C15.6 5.4 16 4.7 16 4C16 2.9 15.1 2 14 2C13.1 2 12.4 2.6 12 3.3C11.6 2.6 10.9 2 10 2C8.9 2 8 2.9 8 4C8 4.7 8.4 5.4 8.8 6C7.8 6.8 7 7.8 6.6 9H5V10H6.1C6 10.3 6 10.7 6 11V12H5V13H6V14H5V15H6V16C6 18.8 8.2 21 11 21H13C15.8 21 18 18.8 18 16V15H19V14H18V13H19V12H18V11C18 10.7 18 10.3 17.9 10H19V9H17.4M14 4C14.6 4 15 4.4 15 5S14.6 6 14 6 13 5.6 13 5 13.4 4 14 4M10 4C10.6 4 11 4.4 11 5S10.6 6 10 6 9 5.6 9 5 9.4 4 10 4M17 16C17 18.2 15.2 20 13 20H11C8.8 20 7 18.2 7 16V11C7 8.8 8.8 7 11 7H13C15.2 7 17 8.8 17 11V16Z"
-            fill={color === 'yellow' ? '#FFD700' : '#4169E1'}
-            stroke="#000"
-            strokeWidth="0.5"
-        />
-    </Svg>
+const SCREEN_WIDTH = Dimensions.get('window').width;
+const SCREEN_HEIGHT = Dimensions.get('window').height;
+
+const FloatingBee = ({ color }) => {
+  const [position] = useState({
+    x: new Animated.Value(Math.random() * SCREEN_WIDTH),
+    y: new Animated.Value(Math.random() * SCREEN_HEIGHT * 0.6)
+  });
+
+  useEffect(() => {
+    const animatePosition = () => {
+      Animated.parallel([
+        Animated.sequence([
+          Animated.timing(position.x, {
+            toValue: Math.random() * SCREEN_WIDTH,
+            duration: 3000,
+            useNativeDriver: true
+          }),
+          Animated.timing(position.x, {
+            toValue: Math.random() * SCREEN_WIDTH,
+            duration: 3000,
+            useNativeDriver: true
+          })
+        ]),
+        Animated.sequence([
+          Animated.timing(position.y, {
+            toValue: Math.random() * SCREEN_HEIGHT * 0.6,
+            duration: 3000,
+            useNativeDriver: true
+          }),
+          Animated.timing(position.y, {
+            toValue: Math.random() * SCREEN_HEIGHT * 0.6,
+            duration: 3000,
+            useNativeDriver: true
+          })
+        ])
+      ]).start(() => animatePosition());
+    };
+
+    animatePosition();
+  }, []);
+
+  return (
+    <Animated.View style={{
+      position: 'absolute',
+      transform: [
+        { translateX: position.x },
+        { translateY: position.y }
+      ]
+    }}>
+      <Image 
+        source={require('../assets/bee.png')} 
+        style={[styles.bee, { tintColor: color }]}
+      />
+    </Animated.View>
+  );
+};
+
+const SimpleBee = ({ color, onPress }) => (
+    <TouchableOpacity onPress={onPress}>
+        <Animatable.View animation="pulse" iterationCount="infinite" duration={2000}>
+            <Image 
+                source={require('../assets/bee.png')} 
+                style={[
+                    styles.bee,
+                    { tintColor: color === 'yellow' ? '#FFD700' : '#4169E1' }
+                ]} 
+            />
+        </Animatable.View>
+    </TouchableOpacity>
+);
+
+const NumberGuide = ({ number }) => (
+    <Animatable.View 
+        animation="fadeIn" 
+        style={styles.numberGuide}
+    >
+        {[...Array(number)].map((_, i) => (
+            <View key={i} style={styles.dot} />
+        ))}
+    </Animatable.View>
 );
 
 const BeeCountingGame = () => {
-    const [gameMode, setGameMode] = useState(null); // 'simple' or 'grouping'
+    const navigation = useNavigation();
+    const [age, setAge] = useState(null);
     const [level, setLevel] = useState(1);
     const [yellowBees, setYellowBees] = useState(0);
     const [blueBees, setBlueBees] = useState(0);
     const [groupedBees, setGroupedBees] = useState(0);
     const [remainingBees, setRemainingBees] = useState(0);
-    const [showCelebration, setShowCelebration] = useState(false);
+    const [showNotification, setShowNotification] = useState(false);
+    const [notificationMessage, setNotificationMessage] = useState('');
     const [showHint, setShowHint] = useState(false);
-    const spinValue = useRef(new Animated.Value(0)).current;
+    const [showCelebration, setShowCelebration] = useState(false);
+    const [stage, setStage] = useState(1);
+    const [answer, setAnswer] = useState('');
+    const [score, setScore] = useState(0);
+    const [currentColor, setCurrentColor] = useState(0); // Index of current color being asked
+    const [isFinalCount, setIsFinalCount] = useState(false);
+    const [totalBees, setTotalBees] = useState(0);
+
+    useEffect(() => {
+        const loadAge = async () => {
+            try {
+                const storedAge = await AsyncStorage.getItem('userAge');
+                if (storedAge) {
+                    setAge(parseInt(storedAge));
+                }
+            } catch (error) {
+                console.error('Error loading age:', error);
+            }
+        };
+        loadAge();
+    }, []);
+
+    // Determine game mode based on age
+    const gameMode = age && age >= 7 ? 'grouping' : 'simple';
 
     // Configuración según nivel
     const gameLevels = {
@@ -44,6 +138,46 @@ const BeeCountingGame = () => {
         }
     };
 
+    const generateStageConfig = (colorCount) => {
+        let colors = [
+            { hex: '#FFD700', name: 'amarillas' },
+            { hex: '#4169E1', name: 'azules' },
+            { hex: '#32CD32', name: 'verdes' },
+            { hex: '#FF0000', name: 'rojas' },
+            { hex: '#800080', name: 'moradas' }
+        ].slice(0, colorCount);
+
+        let remainingBees = 10;
+        let configuredColors = colors.map((color, index) => {
+            if (index === colors.length - 1) {
+                // Last color gets remaining bees (if any)
+                const count = Math.min(remainingBees, Math.floor(Math.random() * 3) + 1);
+                remainingBees -= count;
+                return { ...color, count };
+            } else {
+                // Random 1-3 bees per color
+                const maxPossible = Math.min(3, remainingBees);
+                const count = Math.max(1, Math.min(maxPossible, Math.floor(Math.random() * 3) + 1));
+                remainingBees -= count;
+                return { ...color, count };
+            }
+        });
+
+        return configuredColors;
+    };
+
+    const [stageConfig, setStageConfig] = useState({
+        1: { colors: generateStageConfig(2) },
+        2: { colors: generateStageConfig(3) },
+        3: { colors: generateStageConfig(4) },
+        4: { colors: generateStageConfig(5) }
+    });
+
+    useEffect(() => {
+        const total = stageConfig[stage].colors.reduce((sum, color) => sum + color.count, 0);
+        setTotalBees(total);
+    }, [stage]);
+
     // Sonidos
     const sounds = {
         success: require('../assets/correct.mp3'),
@@ -53,81 +187,16 @@ const BeeCountingGame = () => {
     // Modifica la configuración de audio
     const playSound = async (soundType) => {
         try {
-            await Audio.setAudioModeAsync({
-                allowsRecordingIOS: false,
-                playsInSilentModeIOS: true,
-                staysActiveInBackground: false,
-                shouldDuckAndroid: true,
-            });
-            const { sound } = await Audio.Sound.createAsync(sounds[soundType]);
-            await sound.playAsync();
+            const { sound } = await Audio.Sound.createAsync(
+                sounds[soundType],
+                { shouldPlay: true }
+            );
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            await sound.unloadAsync();
         } catch (error) {
             console.log('Error playing sound:', error);
         }
     };
-
-    const AnimatedBee = ({ color, onPress, size = 80 }) => {
-        const beeRef = useRef();
-        const spinValue = useRef(new Animated.Value(0)).current;
-        
-        useEffect(() => {
-            startBeeAnimation();
-        }, []);
-
-        const startBeeAnimation = () => {
-            Animated.loop(
-                Animated.sequence([
-                    Animated.timing(spinValue, {
-                        toValue: 1,
-                        duration: 2000,
-                        easing: Easing.linear,
-                        useNativeDriver: true
-                    }),
-                    Animated.timing(spinValue, {
-                        toValue: 0,
-                        duration: 2000,
-                        easing: Easing.linear,
-                        useNativeDriver: true
-                    })
-                ])
-            ).start();
-        };
-
-        const spin = spinValue.interpolate({
-            inputRange: [0, 1],
-            outputRange: ['0deg', '360deg']
-        });
-
-        const handlePress = async () => {
-            await triggerHaptic('medium');
-            beeRef.current?.rubberBand(800);
-            onPress();
-        };
-
-        return (
-            <TouchableOpacity onPress={handlePress}>
-                <Animatable.View
-                    ref={beeRef}
-                    style={styles.beeContainer}
-                >
-                    <Animated.View style={{ transform: [{ rotate: spin }] }}>
-                        <BeeIcon color={color} size={size} />
-                    </Animated.View>
-                </Animatable.View>
-            </TouchableOpacity>
-        );
-    };
-
-    const NumberGuide = ({ number }) => (
-        <Animatable.View 
-            animation="fadeIn" 
-            style={styles.numberGuide}
-        >
-            {[...Array(number)].map((_, i) => (
-                <View key={i} style={styles.dot} />
-            ))}
-        </Animatable.View>
-    );
 
     const handleBeeCount = async (color) => {
         if (gameMode === 'simple') {
@@ -165,12 +234,62 @@ const BeeCountingGame = () => {
     const celebrateSuccess = async () => {
         await playSound('success');
         setShowCelebration(true);
+        setNotificationMessage('¡Excelente trabajo!');
+        setShowNotification(true);
         setTimeout(() => {
             setShowCelebration(false);
+            setShowNotification(false);
             if (level < 3) {
                 setLevel(prev => prev + 1);
+                setYellowBees(0);
+                setBlueBees(0);
+                setGroupedBees(0);
+                setRemainingBees(0);
             }
         }, 3000);
+    };
+
+    const checkAnswer = async () => {
+        if (isFinalCount) {
+            if (parseInt(answer) === totalBees) {
+                await playSound('success');
+                setShowCelebration(true);
+                setTimeout(() => {
+                    setShowCelebration(false);
+                    navigation.navigate('MainGameScreen');
+                }, 2000);
+            } else {
+                await playSound('error');
+            }
+            setAnswer('');
+            return;
+        }
+
+        const currentConfig = stageConfig[stage];
+        const currentColorConfig = currentConfig.colors[currentColor];
+        
+        if (parseInt(answer) === currentColorConfig.count) {
+            await playSound('success');
+            
+            if (currentColor + 1 < currentConfig.colors.length) {
+                setCurrentColor(currentColor + 1);
+            } else {
+                if (stage < 4) {
+                    setShowCelebration(true);
+                    setTimeout(() => {
+                        setShowCelebration(false);
+                        setStage(prev => prev + 1);
+                        setCurrentColor(0);
+                        setScore(score + 1);
+                    }, 2000);
+                } else {
+                    setIsFinalCount(true);
+                }
+            }
+        } else {
+            await playSound('error');
+        }
+        setAnswer('');
     };
 
     const Celebration = () => {
@@ -207,153 +326,122 @@ const BeeCountingGame = () => {
 
     return (
         <View style={styles.container}>
-            {!gameMode ? (
-                // Selector de modo de juego
-                <View style={styles.modeSelector}>
-                    <Text style={styles.title}>¡Elige tu juego!</Text>
-                    <TouchableOpacity 
-                        style={styles.modeButton}
-                        onPress={() => setGameMode('simple')}
-                    >
-                        <Text style={styles.modeButtonText}>Contar Abejas</Text>
-                        <Text style={styles.ageText}>4-6 años</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity 
-                        style={styles.modeButton}
-                        onPress={() => setGameMode('grouping')}
-                    >
-                        <Text style={styles.modeButtonText}>Agrupar Abejas</Text>
-                        <Text style={styles.ageText}>7-9 años</Text>
-                    </TouchableOpacity>
-                </View>
-            ) : (
-                // Contenido del juego
-                <>
-                    <Text style={styles.level}>Nivel {level}</Text>
-                    {gameMode === 'simple' ? (
-                        // Modo simple
-                        <SimpleCountingGame 
-                            yellowBees={yellowBees}
-                            blueBees={blueBees}
-                            handleBeeCount={handleBeeCount}
-                            currentLevel={gameLevels.simple[level]}
-                            showHint={showHint}
+            <Text style={styles.level}>Etapa {stage}</Text>
+            <Text style={styles.score}>Puntuación: {score}</Text>
+            
+            <View style={styles.gameArea}>
+                {stageConfig[stage].colors.map((colorConfig, index) => (
+                    Array(colorConfig.count).fill(0).map((_, beeIndex) => (
+                        <FloatingBee 
+                            key={`${index}-${beeIndex}`}
+                            color={colorConfig.hex}
                         />
-                    ) : (
-                        // Modo agrupación
-                        <GroupingGame 
-                            groupedBees={groupedBees}
-                            remainingBees={remainingBees}
-                            handleGrouping={handleGrouping}
-                            currentLevel={gameLevels.grouping[level]}
-                            showHint={showHint}
-                        />
-                    )}
-                </>
-            )}
+                    ))
+                ))}
+            </View>
+
+            <View style={styles.inputContainer}>
+                <Text style={styles.questionText}>
+                    {isFinalCount 
+                        ? '¿Cuántas abejas hay en total?'
+                        : `¿Cuántas abejas ${stageConfig[stage].colors[currentColor].name} ves?`
+                    }
+                </Text>
+                <TextInput
+                    style={styles.input}
+                    keyboardType="numeric"
+                    value={answer}
+                    onChangeText={setAnswer}
+                    placeholder="Ingresa el número"
+                    placeholderTextColor="#666"
+                />
+                <TouchableOpacity 
+                    style={styles.submitButton} 
+                    onPress={checkAnswer}
+                >
+                    <Text style={styles.buttonText}>
+                        {isFinalCount ? 'Finalizar Juego' : 'Comprobar'}
+                    </Text>
+                </TouchableOpacity>
+            </View>
 
             {/* Celebración */}
             <Modal visible={showCelebration} transparent>
                 <Celebration />
             </Modal>
 
-            {/* Botones de control */}
-            <View style={styles.controlButtons}>
-                <TouchableOpacity 
-                    style={styles.hintButton}
-                    onPress={() => setShowHint(!showHint)}
-                >
-                    <Text style={styles.buttonText}>Pista</Text>
-                </TouchableOpacity>
-                <TouchableOpacity 
-                    style={styles.resetButton}
-                    onPress={() => setGameMode(null)}
-                >
-                    <Text style={styles.buttonText}>Menú Principal</Text>
-                </TouchableOpacity>
-            </View>
+            {/* Notificación personalizada */}
+            <Modal transparent={true} visible={showNotification} animationType="fade">
+                <View style={styles.notificationContainer}>
+                    <Animatable.View
+                        animation="fadeInDown"
+                        duration={800}
+                        style={styles.notification}
+                    >
+                        <Animatable.View 
+                            animation="pulse" 
+                            iterationCount="infinite" 
+                            style={styles.successIcon}
+                        >
+                            <Text style={styles.successEmoji}>✨</Text>
+                        </Animatable.View>
+                        <Text style={styles.notificationText}>{notificationMessage}</Text>
+                    </Animatable.View>
+                </View>
+            </Modal>
         </View>
     );
 };
 
 const SimpleCountingGame = ({ yellowBees, blueBees, handleBeeCount, currentLevel, showHint }) => {
     return (
-      <View style={styles.gameContainer}>
-        <View style={styles.beesContainer}>
-          <AnimatedBee color="yellow" onPress={() => handleBeeCount('yellow')} />
-          <AnimatedBee color="blue" onPress={() => handleBeeCount('blue')} />
+        <View style={styles.gameContainer}>
+            <View style={styles.beesContainer}>
+                <SimpleBee color="yellow" onPress={() => handleBeeCount('yellow')} />
+                <SimpleBee color="blue" onPress={() => handleBeeCount('blue')} />
+            </View>
+            {showHint && (
+                <NumberGuide number={Math.max(currentLevel.yellow, currentLevel.blue)} />
+            )}
+            <View style={styles.progressContainer}>
+                <Text style={styles.progressText}>
+                    Abejas Amarillas: {yellowBees}/{currentLevel.yellow}
+                </Text>
+                <Text style={styles.progressText}>
+                    Abejas Azules: {blueBees}/{currentLevel.blue}
+                </Text>
+            </View>
         </View>
-        {showHint && (
-          <NumberGuide number={Math.max(currentLevel.yellow, currentLevel.blue)} />
-        )}
-        <View style={styles.progressContainer}>
-          <Text style={styles.progressText}>
-            Abejas Amarillas: {yellowBees}/{currentLevel.yellow}
-          </Text>
-          <Text style={styles.progressText}>
-            Abejas Azules: {blueBees}/{currentLevel.blue}
-          </Text>
-        </View>
-      </View>
     );
-  };
-  
-  const GroupingGame = ({ groupedBees, remainingBees, handleGrouping, currentLevel, showHint }) => {
+};
+
+const GroupingGame = ({ groupedBees, remainingBees, handleGrouping, currentLevel, showHint }) => {
     return (
-      <View style={styles.gameContainer}>
-        <View style={styles.beesContainer}>
-          <AnimatedBee color="yellow" onPress={handleGrouping} />
+        <View style={styles.gameContainer}>
+            <View style={styles.beesContainer}>
+                <SimpleBee color="yellow" onPress={handleGrouping} />
+            </View>
+            {showHint && (
+                <View style={styles.hintContainer}>
+                    <Text style={styles.hintText}>
+                        Agrupa las abejas de {currentLevel.groupSize} en {currentLevel.groupSize}
+                    </Text>
+                </View>
+            )}
+            <View style={styles.progressContainer}>
+                <Text style={styles.progressText}>
+                    Grupos completados: {groupedBees}
+                </Text>
+                <Text style={styles.progressText}>
+                    Abejas restantes: {remainingBees}
+                </Text>
+            </View>
         </View>
-        {showHint && (
-          <View style={styles.hintContainer}>
-            <Text style={styles.hintText}>
-              Agrupa las abejas de {currentLevel.groupSize} en {currentLevel.groupSize}
-            </Text>
-          </View>
-        )}
-        <View style={styles.progressContainer}>
-          <Text style={styles.progressText}>
-            Grupos completados: {groupedBees}
-          </Text>
-          <Text style={styles.progressText}>
-            Abejas restantes: {remainingBees}
-          </Text>
-        </View>
-      </View>
     );
-  };
-  
-  // Add error boundary
-  class ErrorBoundary extends React.Component {
-    state = { hasError: false };
-  
-    static getDerivedStateFromError(error) {
-      return { hasError: true };
-    }
-  
-    render() {
-      if (this.state.hasError) {
-        return (
-          <View style={styles.errorContainer}>
-            <Text style={styles.errorText}>
-              Algo salió mal. Por favor, reinicia el juego.
-            </Text>
-          </View>
-        );
-      }
-      return this.props.children;
-    }
-  }
-  
-  // Wrap main component with ErrorBoundary
-  export default function BeeCountingGameWrapper() {
-    return (
-      <ErrorBoundary>
-        <BeeCountingGame />
-      </ErrorBoundary>
-    );
-  }
-  
+};
+
+export default BeeCountingGame;
+
 const styles = StyleSheet.create({
     container: {
         flex: 1,
@@ -390,8 +478,9 @@ const styles = StyleSheet.create({
         marginVertical: 30,
     },
     bee: {
-        width: 80,
-        height: 80,
+        width: 40,
+        height: 40,
+        resizeMode: 'contain'
     },
     button: {
         padding: 15,
@@ -525,5 +614,71 @@ const styles = StyleSheet.create({
         padding: 10,
         alignItems: 'center',
         justifyContent: 'center',
+    },
+    notificationContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: 'rgba(0,0,0,0.5)',
+    },
+    notification: {
+        backgroundColor: '#FFF',
+        padding: 20,
+        borderRadius: 10,
+        alignItems: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.25,
+        elevation: 5,
+    },
+    notificationText: {
+        fontSize: 18,
+        fontWeight: '600',
+        color: '#2C3E50',
+        marginTop: 10,
+    },
+    successIcon: {
+        marginBottom: 15,
+    },
+    successEmoji: {
+        fontSize: 50,
+    },
+    gameArea: {
+        flex: 1,
+        position: 'relative',
+    },
+    inputContainer: {
+        padding: 20,
+        backgroundColor: 'rgba(255,255,255,0.9)',
+        borderTopLeftRadius: 20,
+        borderTopRightRadius: 20,
+    },
+    input: {
+        backgroundColor: '#FFF',
+        padding: 15,
+        borderRadius: 10,
+        fontSize: 18,
+        marginBottom: 10,
+        textAlign: 'center',
+    },
+    submitButton: {
+        backgroundColor: '#2ECC71',
+        padding: 15,
+        borderRadius: 10,
+        alignItems: 'center',
+    },
+    score: {
+        fontSize: 20,
+        fontWeight: 'bold',
+        textAlign: 'center',
+        color: '#2E86C1',
+        marginBottom: 10,
+    },
+    questionText: {
+        fontSize: 20,
+        fontWeight: 'bold',
+        textAlign: 'center',
+        marginBottom: 15,
+        color: '#2C3E50',
     },
 });
