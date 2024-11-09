@@ -32,7 +32,7 @@ const LoginScreen = ({ navigation }) => {
       } else {
         await AsyncStorage.removeItem('stayLoggedIn');
       }
-      navigation.navigate('AgeSelection');
+      navigation.navigate('AgeSelectionScreen');
     } else {
       Alert.alert('Error', 'Credenciales incorrectas. Inténtalo de nuevo.');
     }
