@@ -6,9 +6,7 @@ let backgroundMusicSound = null;
 export const initAudio = async () => {
   try {
     await Audio.setAudioModeAsync({
-      playsInSilentModeIOS: true,
       staysActiveInBackground: true,
-      shouldDuckAndroid: false,
     });
   } catch (error) {
     console.warn('Error initializing audio:', error);
@@ -26,7 +24,7 @@ export const startBackgroundMusic = async (isMuted = false) => {
       {
         isLooping: true,
         shouldPlay: !isMuted,
-        volume: 0.5,
+        volume: 0.3,
       },
       null,
       true

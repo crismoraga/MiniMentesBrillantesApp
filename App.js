@@ -16,6 +16,8 @@ import CountingShapesGame from './screens/CountingShapesGame';
 import ShapeMatchingGame from './screens/ShapeMatchingGame';
 import BeeCountingGame from './screens/BeeCountingGame';
 import SettingsScreen from './screens/SettingsScreen';
+import MemorizeShapes from './screens/MemorizeShapes';
+import NumberAdventure from './screens/NumberAdventure';
 
 const Stack = createStackNavigator();
 
@@ -56,6 +58,12 @@ const App = () => {
           <Stack.Screen name="ShapeMatchingGame" component={ShapeMatchingGame} options={{ headerShown: false }} />
           <Stack.Screen name="BeeCountingGame" component={BeeCountingGame} options={{ headerShown: false }} />
           <Stack.Screen name="SettingsScreen" component={SettingsScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="MemorizeShapes" component={MemorizeShapes} options={{ headerShown: false }} />
+          <Stack.Screen 
+            name="NumberAdventure" 
+            component={NumberAdventure} 
+            options={{ headerShown: false }} 
+          />
         </Stack.Navigator>
       </NavigationContainer>
       <Toast config={toastConfig} />

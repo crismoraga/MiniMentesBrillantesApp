@@ -10,12 +10,15 @@ import {
   SafeAreaView,
   ImageBackground,
   FlatList,
+  Vibration,
+  Platform,
 } from 'react-native';
 import * as Animatable from 'react-native-animatable';
 import { FloatingAction } from 'react-native-floating-action';
 import Carousel from 'react-native-snap-carousel';
 import { useAppContext } from '../context/AppContext';
 import { triggerHaptic } from '../services/haptics';
+import * as Haptics from 'expo-haptics';
 
 const { width, height } = Dimensions.get('window');
 
@@ -64,6 +67,26 @@ const MainGameScreen = ({ navigation }) => {
       animation: 'bounceInRight',
       description: 'Aprende a escribir números',
     },
+    {
+      id: 5,
+      title: 'Memoriza Formas',
+      route: 'MemorizeShapes',
+      image: require('../assets/memorice.jpg'), // Asegúrate de tener esta imagen
+      colors: ['#A8E6CF', '#DCEDC1'],
+      icon: '🎯',
+      animation: 'bounceIn',
+      description: 'Encuentra pares de formas iguales',
+    },
+    {
+      id: 6,
+      title: 'Aventura Numérica',
+      route: 'NumberAdventure',
+      image: require('../assets/hidingnumber.png'), // Asegúrate de añadir esta imagen
+      colors: ['#FF85A2', '#FFC2D1'],
+      icon: '🔢',
+      animation: 'fadeIn',
+      description: 'Aprende los números jugando',
+    },
   ];
 
   const featuredGames = games.slice(0, 3); // Seleccionamos algunos juegos destacados
@@ -71,12 +94,11 @@ const MainGameScreen = ({ navigation }) => {
   const handlePlayGame = async (game) => {
     if (!isSoundMuted) {
       try {
-        await triggerHaptic('success', isSoundMuted);
+        await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       } catch (error) {
-        console.warn('Error triggering haptic:', error);
+        console.warn('Error en haptic feedback:', error);
       }
     }
-
     navigation.navigate(game.route, { age: selectedAge });
   };
 

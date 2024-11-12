@@ -16,7 +16,7 @@ export const AppProvider = ({ children }) => {
       secondary: '#33FF57',      // Verde
       accent: '#FF33A1',        // Rosa
       highlight: '#FFD700',     // Dorado
-      background: '#FFF1E6',    // Crema
+      background: '#87CEEB',    // cielo
       text: '#4A4A4A',         // Gris oscuro
       button: '#6a5acd',       // Morado
     },
