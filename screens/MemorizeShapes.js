@@ -76,7 +76,8 @@ const MemorizeShapes = () => {
 
     const loadedSounds = {};
     for (const [key, file] of Object.entries(soundFiles)) {
-      const { sound } = await Audio.Sound.createAsync(file);
+      const sound = new Audio.Sound();
+      await sound.loadAsync(file);
       loadedSounds[key] = sound;
     }
     setSounds(loadedSounds);
@@ -89,8 +90,11 @@ const MemorizeShapes = () => {
   };
 
   const playSound = async (soundName) => {
+    if (isSoundMuted) return;
+
     try {
-      await sounds[soundName].replayAsync();
+      const sound = sounds[soundName];
+      await sound.replayAsync();
     } catch (error) {
       console.log('Error playing sound:', error);
     }

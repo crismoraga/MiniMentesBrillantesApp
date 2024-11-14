@@ -49,7 +49,7 @@ const levels = [
   },
 ];
 
-const Game = ({ navigation }) => {
+const NumberAdventure = ({ navigation }) => {
   const [currentLevel, setCurrentLevel] = useState(0);
   const [currentNumber, setCurrentNumber] = useState(1);
   const [showTutorial, setShowTutorial] = useState(true);
@@ -57,6 +57,7 @@ const Game = ({ navigation }) => {
   const [score, setScore] = useState(0);
   const [timeLeft, setTimeLeft] = useState(levels[0].timeLimit);
   const [gameOver, setGameOver] = useState(false);
+  const [isSoundMuted, setIsSoundMuted] = useState(false);
 
   useEffect(() => {
     if (!showTutorial && !gameOver) {
@@ -75,6 +76,8 @@ const Game = ({ navigation }) => {
   }, [showTutorial, gameOver]);
 
   const playSound = async (type) => {
+    if (isSoundMuted) return;
+
     let soundFile;
     if (type === 'correct') {
       soundFile = require('../assets/correct.mp3');
@@ -86,6 +89,11 @@ const Game = ({ navigation }) => {
       const sound = new Audio.Sound();
       await sound.loadAsync(soundFile);
       await sound.playAsync();
+      sound.setOnPlaybackStatusUpdate(async (status) => {
+        if (status.didJustFinish) {
+          await sound.unloadAsync();
+        }
+      });
     } catch (error) {
       console.warn('Error playing sound:', error);
     }
@@ -314,4 +322,4 @@ const styles = StyleSheet.create({
   }
 });
 
-export default Game;
+export default NumberAdventure;

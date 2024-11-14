@@ -1,12 +1,17 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Modal, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, Modal, TouchableOpacity, Image } from 'react-native';
 import Svg, { Path, Circle } from 'react-native-svg';
 import { PanGestureHandler, State } from 'react-native-gesture-handler';
 import { Audio } from 'expo-av';
 import * as Animatable from 'react-native-animatable';
 import { svgPathProperties } from 'svg-path-properties';
 import completeSound from '../assets/complete.mp3';
+import successSound from '../assets/correct.mp3';
+import errorSound from '../assets/incorrect.mp3';
 import { measure } from 'react-native-reanimated';
+import { interpolate } from 'react-native-reanimated';
+import { catmullRom2bezier } from 'svg-path-properties';
+import ConfettiCannon from 'react-native-confetti-cannon';
 
 const NumberTracingGame = ({ ageGroup, navigation }) => {
   const [currentNumber, setCurrentNumber] = useState(1);
@@ -19,6 +24,8 @@ const NumberTracingGame = ({ ageGroup, navigation }) => {
   const [tracingAreaLayout, setTracingAreaLayout] = useState(null);
   const [tracingAreaOffset, setTracingAreaOffset] = useState({ x: 0, y: 0 });
   const tracingAreaRef = React.useRef(null);
+  const [showGuide, setShowGuide] = useState(false);
+  const confettiRef = useRef(null);
 
   // Añadir validación de prop
   if (!ageGroup) {
@@ -55,7 +62,8 @@ const NumberTracingGame = ({ ageGroup, navigation }) => {
 
   const playSound = async (soundFile) => {
     try {
-      const { sound } = await Audio.Sound.createAsync(soundFile);
+      const sound = new Audio.Sound();
+      await sound.loadAsync(soundFile);
       await sound.playAsync();
       sound.setOnPlaybackStatusUpdate((status) => {
         if (status.didJustFinish) {
@@ -67,6 +75,10 @@ const NumberTracingGame = ({ ageGroup, navigation }) => {
     } catch (error) {
       handleError(error, 'playSound');
     }
+  };
+
+  const playSuccessAnimation = () => {
+    confettiRef.current?.start();
   };
 
   const numberPaths = {
@@ -253,11 +265,17 @@ const NumberTracingGame = ({ ageGroup, navigation }) => {
       }
 
       const similarity = matchedPoints / (length / step);
-      return similarity > 0.7; // Ajustar el umbral según sea necesario
+      return similarity > 0.6; // Ajustamos el umbral para mayor precisión
     } catch (error) {
       handleError(error, 'checkTracing');
       return false;
     }
+  };
+
+  const smoothTracePoints = (points) => {
+    if (points.length < 4) return points;
+    const pathArray = catmullRom2bezier(points.map(p => [p.x, p.y]));
+    return pathArray.flatMap(segment => segment.slice(1).map(([x, y]) => ({ x, y })));
   };
 
   const handleGestureEvent = (event) => {
@@ -267,11 +285,11 @@ const NumberTracingGame = ({ ageGroup, navigation }) => {
         return;
       }
 
-      const { locationX, locationY } = event.nativeEvent;
+      const { x, y } = event.nativeEvent;
 
       // Usar las coordenadas relativas directamente del evento
-      const svgX = (locationX / tracingAreaLayout.width) * 100;
-      const svgY = (locationY / tracingAreaLayout.height) * 100;
+      const svgX = (x / tracingAreaLayout.width) * 100;
+      const svgY = (y / tracingAreaLayout.height) * 100;
 
       console.log('Coordenadas del trazo:', { x: svgX, y: svgY });
 
@@ -286,11 +304,13 @@ const NumberTracingGame = ({ ageGroup, navigation }) => {
       const tracingResult = checkTracing();
       if (tracingResult) {
         setIsTracingCorrect(true);
-        setNotificationMessage(`¡Bien hecho! Has trazado el número ${currentNumber} correctamente.`);
-        await playSound(completeSound);
+        setNotificationMessage(`¡Excelente! Has trazado el número ${currentNumber} correctamente.`);
+        await playSound(successSound);
+        playSuccessAnimation();
       } else {
         setIsTracingCorrect(false);
-        setNotificationMessage('Inténtalo de nuevo. Sigue la línea punteada.');
+        setNotificationMessage('Inténtalo de nuevo. Sigue la guía para ayudarte.');
+        await playSound(errorSound);
       }
       setShowNotification(true);
       setTracedPoints([]);
@@ -300,6 +320,9 @@ const NumberTracingGame = ({ ageGroup, navigation }) => {
   const renderNumber = (number) => {
     if (!numberPaths[number]) return null; // Solo verificar numberPaths
   
+    {/* Trazado del usuario con puntos suavizados */}
+    const smoothedPoints = smoothTracePoints(tracedPoints);
+
     return (
       <View style={styles.svgContainer}>
         <Svg height="100%" width="100%" viewBox="0 0 100 100">
@@ -325,16 +348,31 @@ const NumberTracingGame = ({ ageGroup, navigation }) => {
           {/* Trazado del usuario */}
           <Path
             d={
-              tracedPoints.length > 0
-                ? `M${tracedPoints.map((p) => `${p.x},${p.y}`).join(' L')}`
+              smoothedPoints.length > 0
+                ? `M${smoothedPoints.map((p, index) => {
+                    return index === 0 ? `${p.x},${p.y}` : `L${p.x},${p.y}`;
+                  }).join(' ')}`
                 : ''
             }
             stroke="#FF1744"
-            strokeWidth="3"
+            strokeWidth="4"
             fill="none"
             strokeLinecap="round"
             strokeLinejoin="round"
           />
+
+          {/* Mostrar la guía interactiva si está activada */}
+          {showGuide && (
+            <Path
+              d={numberPaths[number].path}
+              stroke="#82B1FF"
+              strokeWidth="4"
+              fill="none"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              opacity={0.3}
+            />
+          )}
         </Svg>
       </View>
     );
@@ -426,6 +464,10 @@ const NumberTracingGame = ({ ageGroup, navigation }) => {
             <Text style={styles.restartButtonText}>Reiniciar</Text>
           </TouchableOpacity>
 
+          <TouchableOpacity onPress={() => setShowGuide(!showGuide)} style={styles.guideButton}>
+            <Text style={styles.guideButtonText}>{showGuide ? 'Ocultar Guía' : 'Mostrar Guía'}</Text>
+          </TouchableOpacity>
+
           {/* Notificación personalizada */}
           <Modal transparent={true} visible={showNotification} animationType="fade">
             <View style={styles.notificationContainer}>
@@ -441,6 +483,12 @@ const NumberTracingGame = ({ ageGroup, navigation }) => {
               </Animatable.View>
             </View>
           </Modal>
+          <ConfettiCannon
+            ref={confettiRef}
+            count={100}
+            origin={{ x: -10, y: 0 }}
+            autoStart={false}
+          />
         </>
       )}
     </View>
@@ -564,6 +612,18 @@ const styles = StyleSheet.create({
     width: '100%',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  guideButton: {
+    backgroundColor: '#FFD740',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 30,
+    alignSelf: 'center',
+    marginTop: 10,
+  },
+  guideButtonText: {
+    color: '#FFF',
+    fontSize: 18,
   },
 });
 

@@ -33,11 +33,9 @@ export default function HomeScreen({ navigation }) {
   const {
     isMusicMuted,
     isSoundMuted,
-    isColorBlindMode,
     handleMusicToggle,
     handleSoundToggle,
-    handleColorBlindToggle,
-    getColor
+    getColor,
   } = useAppContext();
 
   return (
@@ -84,11 +82,6 @@ export default function HomeScreen({ navigation }) {
             <View style={styles.settingOption}>
               <Text style={styles.settingText}>Silenciar Sonidos</Text>
               <Switch value={isSoundMuted} onValueChange={handleSoundToggle} />
-            </View>
-
-            <View style={styles.settingOption}>
-              <Text style={styles.settingText}>Modo Daltonismo</Text>
-              <Switch value={isColorBlindMode} onValueChange={handleColorBlindToggle} />
             </View>
 
             <TouchableOpacity 

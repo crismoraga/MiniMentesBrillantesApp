@@ -1,55 +1,69 @@
 import { Audio } from 'expo-av';
 
-let sound = null;
-let backgroundMusicSound = null;
+let backgroundMusic = null;
 
 export const initAudio = async () => {
   try {
     await Audio.setAudioModeAsync({
+      playsInSilentModeIOS: true,
       staysActiveInBackground: true,
+      shouldDuckAndroid: true,
     });
+    return true;
   } catch (error) {
     console.warn('Error initializing audio:', error);
+    return false;
   }
 };
 
 export const startBackgroundMusic = async (isMuted = false) => {
   try {
-    if (backgroundMusicSound) {
-      await backgroundMusicSound.unloadAsync();
-    }
+    await cleanup(); // Ensure previous audio is cleaned up
+    await initAudio();
 
     const { sound } = await Audio.Sound.createAsync(
       require('../assets/background.mp3'),
-      {
+      { 
         isLooping: true,
-        shouldPlay: !isMuted,
         volume: 0.3,
-      },
-      null,
-      true
+        shouldPlay: !isMuted 
+      }
     );
 
-    backgroundMusicSound = sound;
-    if (!isMuted) {
-      await sound.playAsync();
-    }
+    backgroundMusic = sound; // Assign the sound object
+    await backgroundMusic.playAsync(); // Start playing immediately if not muted
   } catch (error) {
     console.warn('Error starting background music:', error);
+    backgroundMusic = null; // Reset on error
   }
 };
 
 export const toggleBackgroundMusic = async (isMuted) => {
   try {
-    if (!backgroundMusicSound) return;
-    
+    if (!backgroundMusic) {
+      await startBackgroundMusic(isMuted); // Start music if not already playing
+      return;
+    }
+
     if (isMuted) {
-      await backgroundMusicSound.pauseAsync();
+      await backgroundMusic.pauseAsync(); // Pause if muted
     } else {
-      await backgroundMusicSound.playAsync();
+      await backgroundMusic.playAsync(); // Play if unmuted
     }
   } catch (error) {
     console.warn('Error toggling background music:', error);
+  }
+};
+
+export const cleanup = async () => {
+  try {
+    if (backgroundMusic) {
+      await backgroundMusic.stopAsync().catch(() => {});
+      await backgroundMusic.unloadAsync().catch(() => {});
+      backgroundMusic = null; // Reset after cleanup
+    }
+  } catch (error) {
+    console.warn('Error cleaning up audio:', error);
   }
 };
 
@@ -57,43 +71,25 @@ export const playSound = async (type, isMuted = false) => {
   if (isMuted) return;
 
   try {
-    if (sound) {
-      await sound.unloadAsync();
-    }
-
     const soundFiles = {
       correct: require('../assets/correct.mp3'),
       wrong: require('../assets/incorrect.mp3'),
       complete: require('../assets/complete.mp3'),
     };
 
-    const { sound: newSound } = await Audio.Sound.createAsync(soundFiles[type], {
+    const { sound } = await Audio.Sound.createAsync(soundFiles[type], {
       shouldPlay: true,
       volume: 1.0
     });
 
-    sound = newSound;
+    await sound.playAsync();
 
-    sound.setOnPlaybackStatusUpdate(async (status) => {
+    sound.setOnPlaybackStatusUpdate((status) => {
       if (status.didJustFinish) {
-        await sound.unloadAsync();
-        sound = null;
+        sound.unloadAsync(); // Clean up after playback finishes
       }
     });
   } catch (error) {
     console.warn('Error playing sound:', error);
-  }
-};
-
-export const cleanup = async () => {
-  try {
-    if (sound) {
-      await sound.unloadAsync();
-    }
-    if (backgroundMusicSound) {
-      await backgroundMusicSound.unloadAsync();
-    }
-  } catch (error) {
-    console.warn('Error cleaning up audio:', error);
   }
 };
