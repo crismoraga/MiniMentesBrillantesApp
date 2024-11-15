@@ -77,16 +77,6 @@ const MainGameScreen = ({ navigation }) => {
       animation: 'bounceIn',
       description: 'Encuentra pares de formas iguales',
     },
-    {
-      id: 6,
-      title: 'Aventura Numérica',
-      route: 'NumberAdventure',
-      image: require('../assets/hidingnumber.png'), // Asegúrate de añadir esta imagen
-      colors: ['#FF85A2', '#FFC2D1'],
-      icon: '🔢',
-      animation: 'fadeIn',
-      description: 'Aprende los números jugando',
-    },
   ];
 
   const featuredGames = games.slice(0, 3); // Seleccionamos algunos juegos destacados
