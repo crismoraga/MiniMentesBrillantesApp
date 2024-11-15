@@ -24,7 +24,7 @@ const { width, height } = Dimensions.get('window');
 
 const MainGameScreen = ({ navigation }) => {
   const [selectedAge, setSelectedAge] = useState('4-5');
-  const { getColor, isSoundMuted } = useAppContext();
+  const { getColor, isSoundMuted, speakText } = useAppContext();
 
   const games = [
     {
@@ -92,6 +92,7 @@ const MainGameScreen = ({ navigation }) => {
   const featuredGames = games.slice(0, 3); // Seleccionamos algunos juegos destacados
 
   const handlePlayGame = async (game) => {
+    await speakText(`Juguemos ${game.title}`);
     if (!isSoundMuted) {
       try {
         await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -105,6 +106,7 @@ const MainGameScreen = ({ navigation }) => {
   const renderCarouselItem = ({ item }) => (
     <TouchableOpacity
       onPress={() => handlePlayGame(item)}
+      onPressIn={() => speakText(item.title)}
       activeOpacity={0.8}
       style={styles.carouselItem}
     >

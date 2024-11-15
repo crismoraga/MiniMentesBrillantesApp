@@ -12,6 +12,7 @@ import Svg, { Circle, Rect, Polygon, Path } from 'react-native-svg';
 import { Audio } from 'expo-av';
 import * as Animatable from 'react-native-animatable';
 import { useNavigation } from '@react-navigation/native';
+import { useAppContext } from '../context/AppContext'; // Agregar esta importación al inicio
 
 const shapes = [
   'circle',
@@ -27,6 +28,7 @@ const shapes = [
 ];
 
 const MemorizeShapes = () => {
+  const { speakText, stopSpeak, isSoundMuted } = useAppContext(); // Añadir isSoundMuted
   const navigation = useNavigation();
   const [cards, setCards] = useState([]);
   const [flippedCards, setFlippedCards] = useState([]);
@@ -40,8 +42,25 @@ const MemorizeShapes = () => {
   const timerRef = useRef(null);
 
   useEffect(() => {
-    initializeGame();
-    return () => clearInterval(timerRef.current);
+    const initGame = async () => {
+      try {
+        await speakText('¡Bienvenido al juego de memoria! Encuentra los pares de figuras iguales.');
+        initializeGame();
+      } catch (error) {
+        console.error('Error initializing game:', error);
+      }
+    };
+    
+    initGame();
+    return () => {
+      try {
+        stopSpeak();
+        clearInterval(timerRef.current);
+        unloadSounds();
+      } catch (error) {
+        console.error('Error cleaning up:', error);
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -68,35 +87,43 @@ const MemorizeShapes = () => {
   }, []);
 
   const loadSounds = async () => {
-    const soundFiles = {
-      correct: require('../assets/correct.mp3'),
-      incorrect: require('../assets/incorrect.mp3'),
-      complete: require('../assets/complete.mp3'),
-    };
+    try {
+      const soundFiles = {
+        correct: require('../assets/correct.mp3'),
+        incorrect: require('../assets/incorrect.mp3'),
+        complete: require('../assets/complete.mp3'),
+      };
 
-    const loadedSounds = {};
-    for (const [key, file] of Object.entries(soundFiles)) {
-      const sound = new Audio.Sound();
-      await sound.loadAsync(file);
-      loadedSounds[key] = sound;
+      const loadedSounds = {};
+      for (const [key, file] of Object.entries(soundFiles)) {
+        const { sound } = await Audio.Sound.createAsync(file);
+        loadedSounds[key] = sound;
+      }
+      setSounds(loadedSounds);
+    } catch (error) {
+      console.error('Error loading sounds:', error);
     }
-    setSounds(loadedSounds);
   };
 
   const unloadSounds = async () => {
-    for (const sound of Object.values(sounds)) {
-      await sound.unloadAsync();
+    try {
+      for (const sound of Object.values(sounds)) {
+        if (sound) {
+          await sound.unloadAsync();
+        }
+      }
+    } catch (error) {
+      console.error('Error unloading sounds:', error);
     }
   };
 
   const playSound = async (soundName) => {
-    if (isSoundMuted) return;
-
     try {
-      const sound = sounds[soundName];
-      await sound.replayAsync();
+      if (isSoundMuted || !sounds[soundName]) return;
+      
+      await sounds[soundName].replayAsync();
     } catch (error) {
-      console.log('Error playing sound:', error);
+      console.error('Error playing sound:', error);
     }
   };
 
@@ -126,42 +153,64 @@ const MemorizeShapes = () => {
     }).start();
   };
 
+  const getShapeNameInSpanish = (shapeName) => {
+    const shapeTranslations = {
+      'circle': 'círculo',
+      'square': 'cuadrado',
+      'triangle': 'triángulo',
+      'rectangle': 'rectángulo',
+      'star': 'estrella'
+    };
+    return shapeTranslations[shapeName] || shapeName;
+  };
+
   const handleCardPress = async (cardId) => {
-    if (!isGameActive) return;
-    if (flippedCards.length === 2 || flippedCards.includes(cardId) || matchedPairs.includes(cardId)) {
-      return;
-    }
+    try {
+      if (!isGameActive) return;
+      if (flippedCards.length === 2 || flippedCards.includes(cardId) || matchedPairs.includes(cardId)) {
+        return;
+      }
 
-    const newFlippedCards = [...flippedCards, cardId];
-    setFlippedCards(newFlippedCards);
-    flipCard(cards[cardId].flipAnimation, 1);
+      const newFlippedCards = [...flippedCards, cardId];
+      setFlippedCards(newFlippedCards);
+      flipCard(cards[cardId].flipAnimation, 1);
 
-    if (newFlippedCards.length === 2) {
-      setAttempts(prev => prev + 1);
-      const [firstCard, secondCard] = newFlippedCards;
-      
-      if (cards[firstCard].shape === cards[secondCard].shape) {
-        await playSound('correct');
-        const newMatchedPairs = [...matchedPairs, firstCard, secondCard];
-        setMatchedPairs(newMatchedPairs);
-        setFlippedCards([]);
+      if (newFlippedCards.length === 2) {
+        setAttempts(prev => prev + 1);
+        const [firstCard, secondCard] = newFlippedCards;
         
-        if (newMatchedPairs.length === shapes.length) {
-          await playSound('complete');
-          setTimeout(() => showVictoryMessage(), 500);
+        if (cards[firstCard].shape === cards[secondCard].shape) {
+          await playSound('correct');
+          const shapeName = getShapeNameInSpanish(cards[firstCard].shape);
+          await speakText(`¡Excelente! Has encontrado un par de ${shapeName}s. ¡Sigue así!`);
+          const newMatchedPairs = [...matchedPairs, firstCard, secondCard];
+          setMatchedPairs(newMatchedPairs);
+          setFlippedCards([]);
+          
+          if (newMatchedPairs.length === shapes.length) {
+            await playSound('complete');
+            await speakText('¡Felicitaciones! Has encontrado todos los pares. ¡Eres muy bueno en este juego!');
+            showVictoryMessage();
+          }
+        } else {
+          await playSound('incorrect');
+          await speakText('No son iguales, pero no te preocupes. ¡Sigue intentando!');
+          setTimeout(() => {
+            flipCard(cards[firstCard].flipAnimation, 0);
+            flipCard(cards[secondCard].flipAnimation, 0);
+            setFlippedCards([]);
+          }, 1000);
         }
       } else {
-        await playSound('incorrect');
-        setTimeout(() => {
-          flipCard(cards[firstCard].flipAnimation, 0);
-          flipCard(cards[secondCard].flipAnimation, 0);
-          setFlippedCards([]);
-        }, 1000);
+        await speakText('Busca otra figura igual a esta');
       }
+    } catch (error) {
+      console.error('Error handling card press:', error);
     }
   };
 
   const showVictoryMessage = () => {
+    speakText('¡Felicitaciones! Has completado el juego de memoria.');
     Alert.alert(
       '¡Felicitaciones! 🎉',
       `Has completado el juego en:\nIntentos: ${attempts}\nTiempo: ${timer} segundos`,

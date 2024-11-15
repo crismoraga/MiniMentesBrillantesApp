@@ -4,6 +4,7 @@ import { Audio } from 'expo-av';
 import * as Animatable from 'react-native-animatable';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
+import { useAppContext } from '../context/AppContext';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const SCREEN_HEIGHT = Dimensions.get('window').height;
@@ -106,6 +107,7 @@ const BeeCountingGame = () => {
     const [currentColor, setCurrentColor] = useState(0); // Index of current color being asked
     const [isFinalCount, setIsFinalCount] = useState(false);
     const [totalBees, setTotalBees] = useState(0);
+    const { speakText, stopSpeak } = useAppContext();
 
     useEffect(() => {
         const loadAge = async () => {
@@ -120,6 +122,18 @@ const BeeCountingGame = () => {
         };
         loadAge();
     }, []);
+
+    useEffect(() => {
+        speakText('¡Vamos a contar abejas! En cada etapa te diré cuántas abejas y de qué color debes buscar.');
+        return () => stopSpeak();
+    }, []);
+
+    useEffect(() => {
+        if (stageConfig[stage]) {
+            const currentColorConfig = stageConfig[stage].colors[currentColor];
+            speakText(`Cuenta cuántas abejas ${currentColorConfig.name} hay`);
+        }
+    }, [stage, currentColor]);
 
     // Determine game mode based on age
     const gameMode = age && age >= 7 ? 'grouping' : 'simple';
@@ -252,6 +266,7 @@ const BeeCountingGame = () => {
     const checkAnswer = async () => {
         if (isFinalCount) {
             if (parseInt(answer) === totalBees) {
+                await speakText(`¡Muy bien! Has encontrado correctamente el total de abejas. ¡Excelente trabajo!`);
                 await playSound('success');
                 setShowCelebration(true);
                 setTimeout(() => {
@@ -259,6 +274,7 @@ const BeeCountingGame = () => {
                     navigation.navigate('MainGameScreen');
                 }, 2000);
             } else {
+                await speakText(`No es correcto. El número que dijiste es ${answer}. Intenta contar nuevamente todas las abejas con calma.`);
                 await playSound('error');
             }
             setAnswer('');
@@ -269,24 +285,33 @@ const BeeCountingGame = () => {
         const currentColorConfig = currentConfig.colors[currentColor];
         
         if (parseInt(answer) === currentColorConfig.count) {
+            await speakText(`¡Correcto! Has encontrado las abejas ${currentColorConfig.name}. ¡Muy bien!`);
             await playSound('success');
             
             if (currentColor + 1 < currentConfig.colors.length) {
+                const nextColor = currentConfig.colors[currentColor + 1];
+                setTimeout(async () => {
+                    await speakText(`Ahora cuenta cuántas abejas ${nextColor.name} hay`);
+                }, 1500);
                 setCurrentColor(currentColor + 1);
             } else {
                 if (stage < 4) {
                     setShowCelebration(true);
+                    await speakText('¡Excelente! Has completado esta etapa.');
                     setTimeout(() => {
                         setShowCelebration(false);
                         setStage(prev => prev + 1);
                         setCurrentColor(0);
                         setScore(score + 1);
+                        speakText('Vamos a la siguiente etapa');
                     }, 2000);
                 } else {
+                    await speakText('¡Muy bien! Ahora cuenta todas las abejas en total');
                     setIsFinalCount(true);
                 }
             }
         } else {
+            await speakText(`No es correcto. Intentaste con ${answer}. Cuenta nuevamente las abejas ${currentColorConfig.name} con calma.`);
             await playSound('error');
         }
         setAnswer('');

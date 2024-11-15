@@ -19,8 +19,7 @@
         {
           "launchMode": "most-recent"
         }
-      ],
-      "expo-audio"
+      ]
     ]
   }
 }

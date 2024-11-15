@@ -1,12 +1,15 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, Alert, PanResponder, Animated } from 'react-native';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { PanGestureHandler, State } from 'react-native-gesture-handler';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
 import Toast from 'react-native-toast-message';
+import { useAppContext } from '../context/AppContext';
 
 const PizzaGame = ({ ageGroup, navigation }) => {
+  const { speakText, stopSpeak } = useAppContext();
+
   // State variables
   const [gameState, setGameState] = useState({
     phase: 'addingIngredients',
@@ -25,6 +28,20 @@ const PizzaGame = ({ ageGroup, navigation }) => {
   const [expectedCuts, setExpectedCuts] = useState(generateExpectedCuts());
 
   const ingredientScale = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    speakText('¡Bienvenido al juego de la pizza! Coloca los ingredientes y luego córtala en partes iguales.');
+    return () => stopSpeak();
+  }, []);
+
+  useEffect(() => {
+    if (gameState.phase === 'addingIngredients') {
+      speakText(`Coloca ${gameState.targetIngredients} ingredientes en la pizza`);
+    } else if (gameState.phase === 'cutting') {
+      speakText(`Ahora corta la pizza en ${gameState.targetSlices} porciones iguales`);
+    }
+    return () => stopSpeak();
+  }, [gameState.phase]);
 
   // Sound playback function
   const playSound = async (soundFile) => {
@@ -72,7 +89,15 @@ const PizzaGame = ({ ageGroup, navigation }) => {
         }),
       ]).start();
 
+      const remaining = gameState.targetIngredients - newIngredients.length;
+      if (remaining > 0) {
+        await speakText(`¡Bien! Faltan ${remaining} ingredientes`);
+      } else {
+        await speakText('¡Excelente! Ahora vamos a cortar la pizza');
+      }
+
       if (newIngredients.length >= gameState.targetIngredients) {
+        await speakText('¡Muy bien! Ahora vamos a cortar la pizza');
         Toast.show({
           type: 'success',
           text1: '¡Buen trabajo!',
@@ -121,6 +146,7 @@ const PizzaGame = ({ ageGroup, navigation }) => {
               Math.abs(userCut[1].y - cut.end.y) < 20
           );
           if (isValidCut) {
+            await speakText('¡Buen corte!');
             setCutLines((prev) => [...prev, userCut]);
             if (cutLines.length + 1 >= gameState.targetSlices) {
               Toast.show({
@@ -134,6 +160,7 @@ const PizzaGame = ({ ageGroup, navigation }) => {
               setTimeout(() => navigation.navigate('MainGameScreen'), 3000);
             }
           } else {
+            await speakText('Intenta seguir la línea punteada');
             Toast.show({
               type: 'error',
               text1: 'Corte inválido',

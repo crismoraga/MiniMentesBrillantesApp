@@ -2,6 +2,7 @@ import React, { createContext, useState, useEffect, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Audio } from 'expo-av';
 import { startBackgroundMusic, toggleBackgroundMusic, cleanup } from '../utils/soundEffects';
+import { speak, stopSpeak } from '../services/tts';
 
 export const AppContext = createContext();
 
@@ -10,6 +11,7 @@ export const AppProvider = ({ children }) => {
   const [isSoundMuted, setIsSoundMuted] = useState(false);
   const [isColorBlindMode, setIsColorBlindMode] = useState(false);
   const [selectedTheme, setSelectedTheme] = useState('default');
+  const [isTTSEnabled, setIsTTSEnabled] = useState(true);
 
   const colorSchemes = {
     normal: {
@@ -131,6 +133,12 @@ export const AppProvider = ({ children }) => {
     }
   };
 
+  const speakText = async (text, options = {}) => {
+    if (isTTSEnabled) {
+      await speak(text, options);
+    }
+  };
+
   const value = {
     isMusicMuted,
     isSoundMuted,
@@ -149,6 +157,10 @@ export const AppProvider = ({ children }) => {
         theme: themeName,
       });
     },
+    isTTSEnabled,
+    setIsTTSEnabled,
+    speakText,
+    stopSpeak
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
