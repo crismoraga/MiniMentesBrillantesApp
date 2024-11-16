@@ -24,7 +24,7 @@ const { width, height } = Dimensions.get('window');
 
 const MainGameScreen = ({ navigation }) => {
   const [selectedAge, setSelectedAge] = useState('4-5');
-  const { getColor, isSoundMuted, speakText } = useAppContext();
+  const { getColor, isSoundMuted, speakText, stopSpeak } = useAppContext();
 
   const games = [
     {
@@ -36,6 +36,7 @@ const MainGameScreen = ({ navigation }) => {
       icon: '🔷',
       animation: 'bounceIn',
       description: 'Aprende a clasificar formas básicas',
+      instructions: 'Aprende sobre las formas y colores. Sigue las instrucciones en cada etapa.',
     },
     {
       id: 2,
@@ -46,6 +47,7 @@ const MainGameScreen = ({ navigation }) => {
       icon: '🍕',
       animation: 'zoomIn',
       description: 'Aprende fracciones con pizza',
+      instructions: 'Aprende sobre las fracciones usando pizza. Sigue las instrucciones en cada etapa.',
     },
     {
       id: 3,
@@ -56,6 +58,7 @@ const MainGameScreen = ({ navigation }) => {
       icon: '🐝',
       animation: 'bounceInLeft',
       description: 'Conteo y agrupación',
+      instructions: 'Aprende a contar y agrupar con abejas. Sigue las instrucciones en cada etapa.',
     },
     {
       id: 4,
@@ -66,6 +69,7 @@ const MainGameScreen = ({ navigation }) => {
       icon: '✏️',
       animation: 'bounceInRight',
       description: 'Aprende a escribir números',
+      instructions: 'Aprende a trazar números. Sigue las instrucciones en cada etapa.',
     },
     {
       id: 5,
@@ -76,13 +80,15 @@ const MainGameScreen = ({ navigation }) => {
       icon: '🎯',
       animation: 'bounceIn',
       description: 'Encuentra pares de formas iguales',
+      instructions: 'Encuentra pares de formas iguales. Sigue las instrucciones en cada etapa.',
     },
   ];
 
   const featuredGames = games.slice(0, 3); // Seleccionamos algunos juegos destacados
 
   const handlePlayGame = async (game) => {
-    await speakText(`Juguemos ${game.title}`);
+    await stopSpeak(); // Evitar superposición
+    await speakText(`Has seleccionado el juego ${game.title}. ${game.instructions}`);
     if (!isSoundMuted) {
       try {
         await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);

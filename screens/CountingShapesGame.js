@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Modal } from 'react-native';
 import Svg, { Circle, Rect, Polygon } from 'react-native-svg';
 import { Audio } from 'expo-av';
@@ -10,6 +10,15 @@ const CountingShapesGame = ({ ageGroup }) => {
   const [showNotification, setShowNotification] = useState(false);
   const [notificationMessage, setNotificationMessage] = useState('');
   const maxCount = ageGroup === '4-5' ? 5 : 10;
+
+  useEffect(() => {
+    const speakInstructions = async () => {
+      await stopSpeak(); // Evitar superposición
+      await speakText(`Cuenta las ${currentShape}s que aparecen en la pantalla tocándolas.`);
+    };
+    speakInstructions();
+    return () => stopSpeak();
+  }, [currentShape]);
 
   const playSound = async (soundFile) => {
     try {
@@ -29,9 +38,11 @@ const CountingShapesGame = ({ ageGroup }) => {
   };
 
   const handleShapePress = async () => {
+    await stopSpeak(); // Evitar superposición
     setCount(count + 1);
 
     if (count + 1 >= maxCount) {
+      await speakText(`¡Excelente! Has contado todas las ${currentShape}s.`);
       setNotificationMessage(`¡Felicidades! Has contado ${maxCount} ${currentShape}s.`);
       setShowNotification(true);
       await playSound(require('../assets/complete.mp3'));

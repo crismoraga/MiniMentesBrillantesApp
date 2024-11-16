@@ -87,7 +87,7 @@ const distractors = [
 ];
 
 // Componentes optimizados con memo
-const RecognitionCard = memo(({ item, fadeAnim, slideAnim, scaleAnim, rotateAnim, onLayout }) => (
+const RecognitionCard = memo(({ item, fadeAnim, slideAnim, scaleAnim, onLayout }) => (
   <Animated.View 
     style={[
       styles.card,
@@ -105,16 +105,9 @@ const RecognitionCard = memo(({ item, fadeAnim, slideAnim, scaleAnim, rotateAnim
       colors={['#E0EAFC', '#CFDEF3']}
       style={styles.cardGradient}
     >
-      <Animated.Image 
+      <Image 
         source={item.image} 
-        style={[styles.shapeImage, {
-          transform: [{
-            rotate: rotateAnim.interpolate({
-              inputRange: [0, 1],
-              outputRange: ['0deg', '360deg']
-            })
-          }]
-        }]}
+        style={styles.shapeImage} // Eliminamos la rotación
       />
       <View style={styles.cardContent}>
         <Text style={styles.shapeName}>{item.name.charAt(0).toUpperCase() + item.name.slice(1)}</Text>
@@ -152,10 +145,10 @@ const ShapeSortingGame = ({ navigation }) => {
   const [timer, setTimer] = useState(30);
   const timerRef = useRef(null);
   const [hintUsed, setHintUsed] = useState(false);
+  const [allShapesViewed, setAllShapesViewed] = useState(false);
   const [viewedCards, setViewedCards] = useState(new Set());
   
   const scaleAnim = useRef(new Animated.Value(0)).current;
-  const rotateAnim = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(width)).current;
 
@@ -184,17 +177,26 @@ const ShapeSortingGame = ({ navigation }) => {
 
   useEffect(() => {
     const speakInstructions = async () => {
+      await stopSpeak(); // Evitar superposición
       if (stage === 1) {
         await speakText('¡Vamos a aprender sobre las formas! Primero, conoceremos cada figura. Desliza para ver todas.');
-      } else if (stage === 2) {
-        await speakText('Ahora, elige el nombre correcto para cada forma que aparezca.');
-      } else if (stage === 3) {
-        await speakText('Por último, selecciona la imagen que corresponda al nombre indicado.');
+      } else if (stage === 2 || stage === 3) {
+        await speakText(`Elige la imagen de ${currentShape.name}.`);
       }
     };
     speakInstructions();
     return () => stopSpeak();
-  }, [stage]);
+  }, [stage, currentShape]);
+
+  useEffect(() => {
+    if ((stage === 2 || stage === 3) && currentShape) {
+      const speakShapeInstruction = async () => {
+        await stopSpeak(); // Evitar superposición
+        await speakText(`Elige la imagen de ${currentShape.name}.`);
+      };
+      speakShapeInstruction();
+    }
+  }, [currentShape]);
 
   const startTimer = () => {
     setTimer(30);
@@ -237,7 +239,7 @@ const ShapeSortingGame = ({ navigation }) => {
   const startStageTwo = () => {
     setStage(2);
     setShapeIndex(0);
-    setCurrentShape(shapes[0]);
+    setCurrentShape(shapes[0]); // Comenzamos con el círculo automáticamente
   };
 
   const startStageThree = () => {
@@ -269,8 +271,9 @@ const ShapeSortingGame = ({ navigation }) => {
 
   const handleNameSelection = async (name) => {
     stopTimer();
+    await stopSpeak(); // Evitar superposición
     if (name === currentShape.name) {
-      await speakText('¡Correcto! La respuesta es ' + currentShape.name);
+      await speakText('¡Correcto!');
       setScore(score + (hintUsed ? 5 : 10));
       await playSound(true);
       Toast.show({
@@ -280,7 +283,7 @@ const ShapeSortingGame = ({ navigation }) => {
       });
       loadNextShape();
     } else {
-      await speakText(`Incorrecto. Inténtalo nuevamente. Recuerda que estamos buscando ${currentShape.name}`);
+      await speakText('Incorrecto. Inténtalo nuevamente.');
       await playSound(false);
       Toast.show({
         type: 'error',
@@ -293,7 +296,9 @@ const ShapeSortingGame = ({ navigation }) => {
 
   const handleShapeSelection = async (shape) => {
     stopTimer();
+    await stopSpeak(); // Evitar superposición
     if (shape.name === currentShape.name) {
+      await speakText('¡Correcto!');
       setScore(score + (hintUsed ? 5 : 10));
       await playSound(true);
       Toast.show({
@@ -303,6 +308,7 @@ const ShapeSortingGame = ({ navigation }) => {
       });
       loadNextShape();
     } else {
+      await speakText('Incorrecto. Pista: La forma que buscas empieza con la letra ' + currentShape.name.charAt(0).toUpperCase() + '.');
       await playSound(false);
       Toast.show({
         type: 'error',
@@ -346,23 +352,12 @@ const ShapeSortingGame = ({ navigation }) => {
 
   const animateShape = () => {
     scaleAnim.setValue(0);
-    rotateAnim.setValue(0);
-    Animated.parallel([
-      Animated.timing(scaleAnim, {
-        toValue: 1,
-        duration: 1000,
-        useNativeDriver: true,
-        easing: Easing.elastic(1),
-      }),
-      Animated.loop(
-        Animated.timing(rotateAnim, {
-          toValue: 1,
-          duration: 5000,
-          useNativeDriver: true,
-          easing: Easing.linear,
-        })
-      ),
-    ]).start();
+    Animated.timing(scaleAnim, {
+      toValue: 1,
+      duration: 1000,
+      useNativeDriver: true,
+      easing: Easing.elastic(1),
+    }).start();
   };
 
   const useHint = async () => {
@@ -411,16 +406,15 @@ const ShapeSortingGame = ({ navigation }) => {
 
   const handleSnapToItem = async (index) => {
     const shape = recognitionShapes[index];
+    await stopSpeak(); // Aseguramos que no haya superposición
     await speakText(
       `Esta es la forma ${shape.name}. ${shape.info}. 
       Tiene ${shape.sides} lados. 
       Algunos ejemplos son: ${shape.examples}`
     );
     setViewedCards(prev => new Set([...prev, index]));
-    if (viewedCards.size === recognitionShapes.length - 1) {
-      setTimeout(() => {
-        startStageTwo();
-      }, 1000);
+    if (viewedCards.size === recognitionShapes.length) {
+      setAllShapesViewed(true);
     }
   };
 
@@ -452,6 +446,11 @@ const ShapeSortingGame = ({ navigation }) => {
           />
         ))}
       </View>
+      {allShapesViewed && (
+        <TouchableOpacity style={styles.playButton} onPress={startStageTwo}>
+          <Text style={styles.playButtonText}>¡Jugar!</Text>
+        </TouchableOpacity>
+      )}
     </LinearGradient>
   );
 
@@ -461,7 +460,6 @@ const ShapeSortingGame = ({ navigation }) => {
       fadeAnim={fadeAnim}
       slideAnim={slideAnim}
       scaleAnim={scaleAnim}
-      rotateAnim={rotateAnim}
       onLayout={() => {
         resetCardAnimation();
         animateCard();
@@ -482,16 +480,9 @@ const ShapeSortingGame = ({ navigation }) => {
     <LinearGradient colors={['#FFDEE9', '#B5FFFC']} style={styles.centeredContainer}>
       {currentShape && (
         <>
-          <Animated.Image 
+          <Image 
             source={currentShape.image} 
-            style={[styles.largeShapeImage, {
-              transform: [{
-                rotate: rotateAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: ['0deg', '360deg']
-                })
-              }]
-            }]} 
+            style={styles.largeShapeImage} // Eliminamos la rotación
           />
           <View style={styles.timerContainer}>
             <Progress.Bar 
@@ -821,6 +812,18 @@ const styles = StyleSheet.create({
   },
   flatList: {
     width: '100%',
+  },
+  playButton: {
+    backgroundColor: '#4ECDC4',
+    paddingVertical: 15,
+    paddingHorizontal: 30,
+    borderRadius: 10,
+    marginBottom: 20,
+  },
+  playButtonText: {
+    color: '#fff',
+    fontSize: 24,
+    fontWeight: 'bold',
   },
 });
 

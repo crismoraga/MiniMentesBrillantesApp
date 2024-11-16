@@ -121,11 +121,20 @@ const BeeCountingGame = () => {
             }
         };
         loadAge();
+        return () => {
+            stopSpeak(); // Evitar superposición al desmontar el componente
+        };
     }, []);
 
     useEffect(() => {
-        speakText('¡Vamos a contar abejas! En cada etapa te diré cuántas abejas y de qué color debes buscar.');
-        return () => stopSpeak();
+        const speakInstructions = async () => {
+            await stopSpeak(); // Evitar superposición
+            await speakText('¡Vamos a contar abejas! En cada etapa te diré cuántas abejas y de qué color debes buscar.');
+        };
+        speakInstructions();
+        return () => {
+            stopSpeak(); // Evitar superposición al desmontar el componente
+        };
     }, []);
 
     useEffect(() => {
@@ -264,6 +273,7 @@ const BeeCountingGame = () => {
     };
 
     const checkAnswer = async () => {
+        await stopSpeak(); // Evitar superposición
         if (isFinalCount) {
             if (parseInt(answer) === totalBees) {
                 await speakText(`¡Muy bien! Has encontrado correctamente el total de abejas. ¡Excelente trabajo!`);
@@ -290,14 +300,15 @@ const BeeCountingGame = () => {
             
             if (currentColor + 1 < currentConfig.colors.length) {
                 const nextColor = currentConfig.colors[currentColor + 1];
+                setCurrentColor(currentColor + 1);
                 setTimeout(async () => {
+                    await stopSpeak(); // Evitar superposición
                     await speakText(`Ahora cuenta cuántas abejas ${nextColor.name} hay`);
                 }, 1500);
-                setCurrentColor(currentColor + 1);
             } else {
                 if (stage < 4) {
-                    setShowCelebration(true);
                     await speakText('¡Excelente! Has completado esta etapa.');
+                    setShowCelebration(true);
                     setTimeout(() => {
                         setShowCelebration(false);
                         setStage(prev => prev + 1);

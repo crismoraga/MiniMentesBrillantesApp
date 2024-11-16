@@ -64,6 +64,15 @@ const MemorizeShapes = () => {
   }, []);
 
   useEffect(() => {
+    const speakInstructions = async () => {
+      await stopSpeak(); // Evitar superposición
+      await speakText('¡Vamos a jugar al memorice! Encuentra los pares de figuras iguales.');
+    };
+    speakInstructions();
+    return () => stopSpeak();
+  }, []);
+
+  useEffect(() => {
     if (isGameActive) {
       timerRef.current = setInterval(() => {
         setTimer(prev => prev + 1);
@@ -166,6 +175,7 @@ const MemorizeShapes = () => {
 
   const handleCardPress = async (cardId) => {
     try {
+      await stopSpeak(); // Evitar superposición
       if (!isGameActive) return;
       if (flippedCards.length === 2 || flippedCards.includes(cardId) || matchedPairs.includes(cardId)) {
         return;
